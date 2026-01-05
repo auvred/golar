@@ -4,7 +4,7 @@ This document contains the roadmap and detailed tasks for Golar development. Tas
 
 ## Current Status
 
-Golar can now parse Vue SFCs and generate TypeScript service code for type checking. Basic directives (`v-if`, `v-for`, `v-on`) are supported. Element type checking with `__VLS_asFunctionalElement1` is now implemented.
+Golar can now parse Vue SFCs and generate TypeScript service code for type checking. Basic directives (`v-if`, `v-for`, `v-on`) are supported. Element type checking with `__VLS_asFunctionalElement1` is now implemented. Component resolution distinguishes between imported and global components.
 
 ### Recent Fixes (Jan 2025)
 - Fixed parser `InnerLoc` bug for SFC root elements
@@ -14,6 +14,12 @@ Golar can now parse Vue SFCs and generate TypeScript service code for type check
 - **Updated SetupExposed type**: Now uses `import('vue').ShallowUnwrapRef<{...}>` instead of custom `__VLS_UnwrapRef`
 - **Added component/directive declarations**: `__VLS_LocalComponents`, `__VLS_GlobalComponents`, `__VLS_components`, `__VLS_intrinsics`, `__VLS_directives`, `__VLS_StyleScopedClasses`
 - **Added element type checking**: `__VLS_asFunctionalElement1(__VLS_intrinsics.TAG, ...)` calls for HTML elements
+- **Added typed slot props**: `v-slot="{ item }: { item: Type }"` syntax now works via Volar's callback pattern
+- **Fixed event handler typing**: Compound event handlers now have `[any]` type annotation for `$event`
+- **Distinguished imported vs global components**: 
+  - Imported components use direct reference: `const __VLS_0 = ComponentName || ComponentName`
+  - Global components use type lookup: `let __VLS_0!: __VLS_WithComponent<...>`
+- **Fixed setupConsts tracking**: Use AST `Text` field instead of position slicing to avoid trivia
 
 ---
 
@@ -85,16 +91,22 @@ This difference is intentional - the leading semicolon prevents ASI issues when 
 
 ## Medium Priority: Missing Vue Features
 
-### Task: Implement `defineEmits` Support
+### Task: Implement `defineEmits` Support - HIGH PRIORITY
 
-**Status**: Not implemented
+**Status**: Not implemented - blocking component emit type inference
 
 **What's needed**:
-1. Parse `defineEmits<{...}>()` or `defineEmits(['event1', 'event2'])`
-2. Generate emit type definitions
-3. Type-check `emit('eventName', payload)` calls in templates
+1. Capture `defineEmits` return value: `const __VLS_emit = defineEmits(['event1', 'event2'])`
+2. Create `__VLS_EmitProps` type from emit definition
+3. Add `{ $emit: typeof __VLS_emit }` to `__VLS_ctx`
+4. Include `emits: {} as __VLS_NormalizeEmits<typeof __VLS_emit>` in component export
+5. This enables `__VLS_NormalizeComponentEvent` to properly type-check event handlers
 
-**Reference**: Volar's `packages/language-core/lib/codegen/script/scriptSetup.ts`
+**Why it matters**: Without this, components that don't declare emits cause TS2344 errors when using `__VLS_NormalizeComponentEvent` because `keyof Emits` resolves to `never`.
+
+**Reference**: 
+- Volar's `packages/language-core/lib/codegen/script/scriptSetup.ts`
+- See child.vue in `.reference/language-tools/test-workspace/tsc/#3100/`
 
 ### Task: Implement `v-model` Support
 
@@ -109,25 +121,58 @@ This difference is intentional - the leading semicolon prevents ASI issues when 
 
 ### Task: Implement Component Type Inference
 
-**Status**: Not implemented
+**Status**: Partially implemented
 
-**What's needed**:
-1. When using `<MyComponent :prop="value">`, infer prop types from component
-2. Check that props match component's `defineProps`
-3. Check slot content types
+**What's done**:
+- Imported components use direct reference for type inference
+- Global components use `__VLS_WithComponent` lookup
+- Props are passed through `__VLS_asFunctionalComponent1` for type checking
+
+**What's still needed**:
+1. Emit type inference (requires `defineEmits` support)
+2. Slot content type checking
+3. Component ref types (`defineExpose`)
 
 **This is complex** - requires:
-- Resolving component imports
-- Extracting prop/emit/slot types from component definitions
-- Generating proper type constraints
+- Extracting emit types from component definitions
+- Generating proper type constraints for slots
 
 ### Task: Implement `v-slot` / Slot Props
 
-**Status**: Partial (syntax parsed, types not inferred)
+**Status**: Partial - basic slot props work, type inference from component doesn't
+
+**What works**:
+- `v-slot="props"` generates proper scope variable
+- `v-slot="{ item }: { item: Type }"` typed slot props work via Volar's callback pattern
+- Default slot content is rendered
 
 **What's needed**:
-1. `<template #default="{ item }">` should type `item` from slot definition
-2. Requires component type inference first
+1. Infer slot prop types from component's `defineSlots` or slot definition
+2. Type-check slot content against component's expected slot structure
+3. Requires component type inference first
+
+---
+
+## Known Issues / Technical Debt
+
+### Component Emit Type Inference Deferred
+
+Full emit type inference using `__VLS_NormalizeComponentEvent` is currently disabled because:
+1. It requires `defineEmits` support to capture emit types
+2. Without emit types, `__VLS_ResolveEmits` returns `{}`, causing `keyof Emits` to be `never`
+3. This triggers TS2344 constraint errors for any event handler
+
+**Current workaround**: Event handlers are generated as standalone expressions that type-check the handler function but don't verify the event name exists on the component.
+
+**To fix**: Implement `defineEmits` capture in script codegen (see High Priority section).
+
+### Dynamic Components Not Supported
+
+`<component :is="SomeComponent">` is not yet handled. The parser treats `component` as a regular element.
+
+### Pug Templates Not Supported
+
+`<template lang="pug">` parses but codegen doesn't handle pug syntax.
 
 ---
 

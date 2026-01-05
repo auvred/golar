@@ -42,6 +42,8 @@ Golar is under active development. Below is the current status of Vue SFC featur
 | Type-only imports | Supported | Correctly handles `import type` and `{ type X }` |
 | Ref/computed unwrapping | Supported | Auto-unwraps `Ref<T>` and `ComputedRef<T>` in templates |
 | Diagnostic mapping | Supported | Errors map back to source `.vue` positions |
+| Imported component resolution | Supported | Direct type reference for components imported in `<script setup>` |
+| Global component resolution | Supported | `__VLS_WithComponent` lookup for globally registered components |
 
 ### Partially Supported
 
@@ -55,15 +57,16 @@ Golar is under active development. Below is the current status of Vue SFC featur
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `defineEmits` | Not yet | Emit types not inferred |
+| `defineEmits` | Not yet | Emit types not captured for event type inference |
 | `defineSlots` | Not yet | Slot type inference not implemented |
 | `defineExpose` | Not yet | |
 | `defineModel` | Not yet | |
 | `v-model` | Not yet | Two-way binding codegen |
-| Component type inference | Not yet | Component props/events/slots not type-checked |
+| Component emit type inference | Not yet | Requires `defineEmits` support first |
 | Generic components | Not yet | `<script setup generic="T">` |
 | CSS `v-bind()` | Not yet | |
-| `<script>` (non-setup) | Not yet | Options API support |
+| Dynamic components | Not yet | `<component :is="...">` |
+| Pug templates | Not yet | `<template lang="pug">` |
 
 ### Known Limitations
 

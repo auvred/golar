@@ -262,6 +262,16 @@ Event handlers require special handling based on expression type:
 
 11. **Line preservation vs character preservation** - Golar preserves line counts (newlines) but NOT character counts per line. Long lines (like minified CSS) should not be replaced with equivalent spaces - just use empty lines. Character-level mapping is handled by source maps.
 
+12. **AST node positions include trivia** - TypeScript AST node `Loc.Pos()` includes leading whitespace (trivia). When extracting identifier names, use the `Text` field from `Identifier` nodes (`n.AsIdentifier().Text`) instead of slicing source text by positions. Otherwise you'll get names with leading spaces.
+
+13. **Imported vs global components** - Volar distinguishes between imported components and global components:
+    - **Imported**: `const __VLS_0 = ComponentName || ComponentName` (direct reference)
+    - **Global**: `let __VLS_0!: __VLS_WithComponent<...>` (type lookup)
+    
+    Track setup consts (imports, variables, functions from script setup) and check if the component tag matches. Use `camelize()` and `capitalize()` to match different naming conventions (e.g., `my-component` → `MyComponent`).
+
+14. **Component emit type inference requires defineEmits** - The `__VLS_NormalizeComponentEvent` type has constraints like `Event extends keyof Emits`. If a component doesn't declare emits via `defineEmits`, the emit type is `{}`, making `keyof Emits` equal to `never`, which causes TS2344 constraint errors. Full emit type inference requires capturing `defineEmits` return value and threading it through the generated code.
+
 ## Volar Comparison Testing
 
 The `.reference/` directory (gitignored) contains the official Volar/Vue language-tools for comparing Golar's codegen output against the reference implementation.
