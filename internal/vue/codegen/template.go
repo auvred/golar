@@ -42,9 +42,49 @@ func (c *templateCodegenCtx) declareScopeVar(name string) {
 	}
 }
 
+// globalIdentifiers contains JavaScript global names that should NOT be prefixed with __VLS_ctx.
+// This matches Vue's GLOBALS_ALLOWED from @vue/shared:
+// https://github.com/vuejs/core/blob/main/packages/shared/src/globalsAllowed.ts
+var globalIdentifiers = makeGlobalIdentifiers()
+
+// literalWhitelist matches Vue's isLiteralWhitelisted
+// https://github.com/vuejs/core/blob/main/packages/compiler-core/src/transforms/transformExpression.ts
+var literalWhitelist = makeLiteralWhitelist()
+
+func makeGlobalIdentifiers() collections.Set[string] {
+	// Exact match of Vue's GLOBALS_ALLOWED
+	globals := strings.Split(
+		"Infinity,undefined,NaN,isFinite,isNaN,parseFloat,parseInt,decodeURI,decodeURIComponent,encodeURI,encodeURIComponent,Math,Number,Date,Array,Object,Boolean,String,RegExp,Map,Set,JSON,Intl,BigInt,console,Error,Symbol",
+		",",
+	)
+	set := collections.Set[string]{}
+	for _, g := range globals {
+		set.Add(g)
+	}
+	return set
+}
+
+func makeLiteralWhitelist() collections.Set[string] {
+	// Matches Vue's isLiteralWhitelisted: 'true,false,null,this'
+	literals := []string{"true", "false", "null", "this"}
+	set := collections.Set[string]{}
+	for _, l := range literals {
+		set.Add(l)
+	}
+	return set
+}
+
 func (c *templateCodegenCtx) shouldPrefixIdentifier(identifier *ast.Node) bool {
 	name := identifier.Text()
 
+	// Check template scopes first (v-for variables, slot props, etc.)
+	for _, scope := range c.scopes {
+		if scope.Has(name) {
+			return false
+		}
+	}
+
+	// Check local scope from TypeScript AST (function params, const declarations, etc.)
 	for location := identifier; location != nil; location = location.Parent {
 		locals := location.Locals()
 		if _, ok := locals[name]; ok {
@@ -52,10 +92,24 @@ func (c *templateCodegenCtx) shouldPrefixIdentifier(identifier *ast.Node) bool {
 		}
 	}
 
-	for _, scope := range c.scopes {
-		if scope.Has(name) {
-			return false
-		}
+	// Check if it's a globally allowed identifier (Vue's GLOBALS_ALLOWED)
+	if globalIdentifiers.Has(name) {
+		return false
+	}
+
+	// Check literal whitelist (true, false, null, this)
+	if literalWhitelist.Has(name) {
+		return false
+	}
+
+	// Check for require (special case in Volar)
+	if name == "require" {
+		return false
+	}
+
+	// Check for __VLS_ internal variables
+	if strings.HasPrefix(name, "__VLS_") {
+		return false
 	}
 
 	return true
@@ -165,7 +219,9 @@ func (c *templateCodegenCtx) visit(el *vue_ast.ElementNode) {
 			}
 			if forDirective != nil {
 				c.enterScope()
-				c.serviceText.WriteString("{\nconst [")
+				// Use for...of loop to iterate over __VLS_vFor results
+				// e.g., for (const [item, key, index] of __VLS_vFor(source)) { ... }
+				c.serviceText.WriteString("for (const [")
 				if forDirective.Value != nil {
 					c.mapExpressionInBindingPosition(forDirective.Value)
 				}
@@ -177,9 +233,9 @@ func (c *templateCodegenCtx) visit(el *vue_ast.ElementNode) {
 				if forDirective.Index != nil {
 					c.mapExpressionInBindingPosition(forDirective.Index)
 				}
-				c.serviceText.WriteString("] = __VLS_vFor(")
+				c.serviceText.WriteString("] of __VLS_vFor(")
 				c.mapExpressionInNonBindingPosition(forDirective.Source)
-				c.serviceText.WriteString(")\n")
+				c.serviceText.WriteString(")) {\n")
 			}
 			// Generate element type checking call
 			// Skip template elements (used for v-if/v-for grouping)
@@ -199,7 +255,7 @@ func (c *templateCodegenCtx) visit(el *vue_ast.ElementNode) {
 			c.visit(elem)
 			if forDirective != nil {
 				c.exitScope()
-				c.serviceText.WriteString("}\n")
+				c.serviceText.WriteString("}\n") // Close the for loop
 			}
 			if conditionalDirective != nil {
 				c.serviceText.WriteString("}\n")
@@ -755,10 +811,13 @@ func (c *templateCodegenCtx) generateElementDirectiveProp(dir *vue_ast.Directive
 			// Check if compound expression - needs arrow function wrapper
 			isCompound := c.isCompoundExpression(dir.Expression.Ast)
 			if isCompound {
-				// Compound expression: wrap in arrow function
+				// Compound expression: wrap in arrow function with $event in scope
 				// e.g., "count++; foo = bar" -> "(...[$event]) => { count++; foo = bar }"
 				c.serviceText.WriteString("(...[$event]) => {\n")
+				c.enterScope()
+				c.declareScopeVar("$event")
 				c.mapExpressionInNonBindingPosition(dir.Expression)
+				c.exitScope()
 				c.serviceText.WriteString("\n}")
 			} else {
 				// Simple expression: use directly

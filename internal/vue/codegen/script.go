@@ -1,17 +1,29 @@
 package vue_codegen
 
 import (
-	"github.com/auvred/golar/internal/vue/ast"
+	vue_ast "github.com/auvred/golar/internal/vue/ast"
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/core"
 )
 
-// TODO: <script src="">
+// getAttributeValue returns the value of an attribute by name, or empty string if not found
+func getAttributeValue(el *vue_ast.ElementNode, name string) string {
+	for _, prop := range el.Props {
+		if prop.Kind == vue_ast.KindAttribute {
+			attr := prop.AsAttribute()
+			if attr.Name == name && attr.Value != nil {
+				return attr.Value.Content
+			}
+		}
+	}
+	return ""
+}
 
 type scriptCodegenCtx struct {
 	*codegenCtx
 	scriptSetupEl *vue_ast.ElementNode
 	scriptEl      *vue_ast.ElementNode
+	templateEl    *vue_ast.ElementNode // nil if template should be generated separately
 }
 
 // definePropsInfo holds information about a defineProps call
@@ -120,11 +132,12 @@ func findDefineProps(file *ast.SourceFile) *definePropsInfo {
 	return nil
 }
 
-func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, scriptEl *vue_ast.ElementNode) {
+func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, scriptEl *vue_ast.ElementNode, templateEl *vue_ast.ElementNode) {
 	c := scriptCodegenCtx{
 		codegenCtx:    base,
 		scriptSetupEl: scriptSetupEl,
 		scriptEl:      scriptEl,
+		templateEl:    templateEl,
 	}
 
 	c.serviceText.WriteString("import { defineComponent as __VLS_DefineComponent } from 'vue'\n")
@@ -141,45 +154,72 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 
 	var selfType string
 	if c.scriptEl != nil {
-		if len(c.scriptEl.Children) != 1 {
-			panic("TODO: len of <script> children != 1")
-		}
-
-		innerStart := c.scriptEl.InnerLoc.Pos()
-		text := c.scriptEl.Children[0].AsText()
-
-		mapStart := text.Loc.Pos()
-		hasExportDefault := false
-
-		for _, statement := range c.scriptEl.Ast.Statements.Nodes {
-			if !ast.IsExportAssignment(statement) {
-				continue
+		// Handle <script src="..."> - external script source
+		if srcAttr := getAttributeValue(c.scriptEl, "src"); srcAttr != "" {
+			// Generate import from external source and re-export
+			c.serviceText.WriteString("import __VLS_default from '")
+			c.serviceText.WriteString(srcAttr)
+			c.serviceText.WriteString("';\n")
+			c.serviceText.WriteString("export default __VLS_default;;\n")
+			selfType = "__VLS_default"
+			// External script with src doesn't have inline content, skip the rest
+		} else {
+			// Handle inline <script> content
+			if len(c.scriptEl.Children) != 1 {
+				panic("TODO: len of <script> children != 1")
 			}
 
-			hasExportDefault = true
-			export := statement.AsExportAssignment()
-			c.mapText(mapStart, innerStart+export.Expression.Pos())
-			c.serviceText.WriteString(" {} as unknown as typeof __VLS_Export\n")
-			if c.scriptSetupEl == nil {
-				c.serviceText.WriteString("const __VLS_Export = ")
-				selfType = "__VLS_Export"
-			} else {
-				c.serviceText.WriteString("const __VLS_Self = ")
-				selfType = "__VLS_Self"
+			innerStart := c.scriptEl.InnerLoc.Pos()
+			text := c.scriptEl.Children[0].AsText()
+
+			mapStart := text.Loc.Pos()
+			hasExportDefault := false
+
+			for _, statement := range c.scriptEl.Ast.Statements.Nodes {
+				if !ast.IsExportAssignment(statement) {
+					continue
+				}
+
+				hasExportDefault = true
+				export := statement.AsExportAssignment()
+				c.mapText(mapStart, innerStart+export.Expression.Pos())
+				c.serviceText.WriteString(" {} as unknown as typeof __VLS_Export\n")
+				if c.scriptSetupEl == nil {
+					c.serviceText.WriteString("const __VLS_Export = ")
+					selfType = "__VLS_Export"
+				} else {
+					c.serviceText.WriteString("const __VLS_Self = ")
+					selfType = "__VLS_Self"
+				}
+				mapStart = innerStart + export.Expression.Pos()
+
+				break
 			}
-			mapStart = innerStart + export.Expression.Pos()
 
-			break
+			c.mapText(mapStart, text.Loc.End())
+			c.serviceText.WriteString("\n\n")
+
+			// Only create __VLS_Export for regular script if there's no script setup
+			// When both exist, script setup will create __VLS_Export
+			if !hasExportDefault && c.scriptSetupEl == nil {
+				c.serviceText.WriteString("const __VLS_Export = __VLS_DefineComponent({})\nexport default __VLS_Export\n")
+			}
+
+			// TODO: options wrapper - wrap export default |defineComponent(|{}|)|
 		}
 
-		c.mapText(mapStart, text.Loc.End())
-		c.serviceText.WriteString("\n\n")
-
-		if !hasExportDefault {
-			c.serviceText.WriteString("const __VLS_Export = __VLS_DefineComponent({})\nexport default __VLS_Export\n")
+		// For regular <script> (no setup), generate __VLS_ctx and component types
+		if c.scriptSetupEl == nil && selfType != "" {
+			c.serviceText.WriteString("const __VLS_ctx = {} as InstanceType<__VLS_PickNotAny<typeof ")
+			c.serviceText.WriteString(selfType)
+			c.serviceText.WriteString(", new () => {}>>;\n")
+			c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
+			c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
+			c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
+			c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
+			c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
+			c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
 		}
-
-		// TODO: options wrapper - wrap export default |defineComponent(|{}|)|
 	}
 
 	// TODO: generic support
@@ -200,6 +240,8 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		text := c.scriptSetupEl.Children[0].AsText()
 
 		if c.scriptEl != nil {
+			// When both <script> and <script setup> exist, add export default first
+			c.serviceText.WriteString("export default {} as typeof __VLS_Export\n")
 			c.serviceText.WriteString("const __VLS_Export = await (async () => {\n")
 		} else {
 			// TODO
@@ -355,6 +397,12 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		}
 		c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
 		c.serviceText.WriteString("type __VLS_StyleScopedClasses = {};\n")
+
+		// When both scripts exist, generate template INSIDE the async IIFE
+		// so it can access __VLS_ctx, __VLS_intrinsics, etc.
+		if c.scriptEl != nil && c.templateEl != nil {
+			generateTemplate(c.codegenCtx, c.templateEl)
+		}
 
 		if c.scriptEl != nil {
 			c.serviceText.WriteString("\n})()\n")

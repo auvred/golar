@@ -12,29 +12,97 @@ import (
 	vue_parser "github.com/auvred/golar/internal/vue/parser"
 )
 
-// TestVolarComparison compares Golar's codegen output with Volar's reference implementation.
-// This test requires the .reference/language-tools to be set up with dependencies installed.
+// TestVolarComparison runs comparison tests between Golar and Volar codegen.
 //
-// To update the reference baselines:
-//  1. cd .reference/language-tools && bun install
-//  2. Run tests with -update flag (not yet implemented)
+// Prerequisites:
+//   - Run: ./scripts/setup-volar-reference.sh
 //
-// The test fixtures are stored in testdata/volar_comparison/
+// Test cases are in testdata/ directory, copied from Volar's test-workspace.
+// Each test case has:
+//   - main.vue: The Vue component to test
+//   - *.vue: Additional Vue files if needed
+//   - tsconfig.json: TypeScript configuration
+//
+// To sync test cases from Volar:
+//   - Run: ./scripts/sync-volar-tests.sh
 func TestVolarComparison(t *testing.T) {
-	// Skip if .reference directory doesn't exist or bun is not available
-	refDir := filepath.Join(getProjectRoot(t), ".reference", "language-tools")
+	projectRoot := getProjectRoot(t)
+	refDir := filepath.Join(projectRoot, ".reference", "language-tools")
+
+	// Skip if reference not set up
 	if _, err := os.Stat(refDir); os.IsNotExist(err) {
-		t.Skip("Skipping Volar comparison: .reference/language-tools not found")
+		t.Skip("Skipping: .reference/language-tools not found. Run: ./scripts/setup-volar-reference.sh")
 	}
 
 	if _, err := exec.LookPath("bun"); err != nil {
-		t.Skip("Skipping Volar comparison: bun not found in PATH")
+		t.Skip("Skipping: bun not found in PATH")
 	}
 
-	// Check if node_modules exists
+	// Check if bun install was run
 	nodeModules := filepath.Join(refDir, "node_modules")
 	if _, err := os.Stat(nodeModules); os.IsNotExist(err) {
-		t.Skip("Skipping Volar comparison: run 'bun install' in .reference/language-tools first")
+		t.Skip("Skipping: run './scripts/setup-volar-reference.sh' first")
+	}
+
+	testdataDir := filepath.Join(projectRoot, "internal/vue/tests/volar_comparison/testdata")
+	entries, err := os.ReadDir(testdataDir)
+	if err != nil {
+		t.Fatalf("Failed to read testdata directory: %v", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		testName := entry.Name()
+		testDir := filepath.Join(testdataDir, testName)
+
+		// Find main.vue or any .vue file
+		vueFile := findVueFile(t, testDir)
+		if vueFile == "" {
+			continue
+		}
+
+		t.Run(testName, func(t *testing.T) {
+			content, err := os.ReadFile(vueFile)
+			if err != nil {
+				t.Fatalf("Failed to read %s: %v", vueFile, err)
+			}
+
+			golarOutput := getGolarOutput(t, string(content))
+			volarOutput := getVolarOutput(t, vueFile, projectRoot)
+
+			// Basic sanity checks
+			if len(golarOutput) == 0 {
+				t.Error("Golar produced empty output")
+			}
+			if len(volarOutput) == 0 {
+				t.Error("Volar produced empty output")
+			}
+
+			// Log outputs for debugging (only shown on failure or -v)
+			t.Logf("\n=== Source ===\n%s", string(content))
+			t.Logf("\n=== Golar Output ===\n%s", golarOutput)
+			t.Logf("\n=== Volar Output ===\n%s", volarOutput)
+
+			// Check semantic equivalence
+			checkSemanticEquivalence(t, string(content), golarOutput, volarOutput)
+		})
+	}
+}
+
+// TestInlineComparison tests specific inline Vue code snippets
+func TestInlineComparison(t *testing.T) {
+	projectRoot := getProjectRoot(t)
+	refDir := filepath.Join(projectRoot, ".reference", "language-tools")
+
+	if _, err := os.Stat(refDir); os.IsNotExist(err) {
+		t.Skip("Skipping: run './scripts/setup-volar-reference.sh' first")
+	}
+
+	if _, err := exec.LookPath("bun"); err != nil {
+		t.Skip("Skipping: bun not found in PATH")
 	}
 
 	testCases := []struct {
@@ -69,7 +137,7 @@ const items = ['a', 'b', 'c']
 </template>`,
 		},
 		{
-			name: "event_handler",
+			name: "event_handler_simple",
 			content: `<script setup lang="ts">
 const handleClick = () => console.log('clicked')
 </script>
@@ -78,7 +146,7 @@ const handleClick = () => console.log('clicked')
 </template>`,
 		},
 		{
-			name: "compound_event_handler",
+			name: "event_handler_compound",
 			content: `<script setup lang="ts">
 let count = 0
 </script>
@@ -87,7 +155,7 @@ let count = 0
 </template>`,
 		},
 		{
-			name: "logical_and_in_directive",
+			name: "v_if_with_logical_and",
 			content: `<script setup lang="ts">
 const a = true
 const b = false
@@ -96,11 +164,31 @@ const b = false
   <div v-if="a && b">Both true</div>
 </template>`,
 		},
+		{
+			name: "v_for_with_destructuring",
+			content: `<script setup lang="ts">
+const items = [{ id: 1, name: 'foo' }, { id: 2, name: 'bar' }]
+</script>
+<template>
+  <div v-for="{ id, name } in items" :key="id">{{ name }}</div>
+</template>`,
+		},
+		{
+			name: "v_if_else_chain",
+			content: `<script setup lang="ts">
+const type = 'a'
+</script>
+<template>
+  <div v-if="type === 'a'">A</div>
+  <div v-else-if="type === 'b'">B</div>
+  <div v-else>Other</div>
+</template>`,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create temp file
+			// Create temp file for Volar
 			tmpFile, err := os.CreateTemp("", "*.vue")
 			if err != nil {
 				t.Fatalf("Failed to create temp file: %v", err)
@@ -112,18 +200,9 @@ const b = false
 			}
 			tmpFile.Close()
 
-			// Get Golar output
 			golarOutput := getGolarOutput(t, tc.content)
+			volarOutput := getVolarOutput(t, tmpFile.Name(), projectRoot)
 
-			// Get Volar output
-			volarOutput := getVolarOutput(t, tmpFile.Name())
-
-			// For now, just log the outputs for comparison
-			// In the future, we can add specific assertions based on what should match
-			t.Logf("=== Golar Output ===\n%s", golarOutput)
-			t.Logf("=== Volar Output ===\n%s", volarOutput)
-
-			// Basic sanity checks - both should produce non-empty output
 			if len(golarOutput) == 0 {
 				t.Error("Golar produced empty output")
 			}
@@ -131,11 +210,35 @@ const b = false
 				t.Error("Volar produced empty output")
 			}
 
-			// Check that key patterns exist in both outputs
-			// These are semantic checks, not exact string matches
-			checkSemanticEquivalence(t, tc.name, golarOutput, volarOutput, tc.content)
+			t.Logf("\n=== Source ===\n%s", tc.content)
+			t.Logf("\n=== Golar Output ===\n%s", golarOutput)
+			t.Logf("\n=== Volar Output ===\n%s", volarOutput)
+
+			checkSemanticEquivalence(t, tc.content, golarOutput, volarOutput)
 		})
 	}
+}
+
+func findVueFile(t *testing.T, dir string) string {
+	// Prefer main.vue
+	mainVue := filepath.Join(dir, "main.vue")
+	if _, err := os.Stat(mainVue); err == nil {
+		return mainVue
+	}
+
+	// Fall back to any .vue file
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".vue") {
+			return filepath.Join(dir, entry.Name())
+		}
+	}
+
+	return ""
 }
 
 func getGolarOutput(t *testing.T, content string) string {
@@ -144,42 +247,38 @@ func getGolarOutput(t *testing.T, content string) string {
 	return serviceCode
 }
 
-func getVolarOutput(t *testing.T, filePath string) string {
-	projectRoot := getProjectRoot(t)
-	refDir := filepath.Join(projectRoot, ".reference")
-	scriptPath := filepath.Join(refDir, "generate_volar.ts")
+func getVolarOutput(t *testing.T, filePath, projectRoot string) string {
+	scriptPath := filepath.Join(projectRoot, "tools/volar/generate_volar.ts")
 
-	// Check if the generator script exists (created by setup-volar-reference.sh)
+	// Check if the generator script exists
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-		t.Fatalf("Volar generator script not found. Run: ./scripts/setup-volar-reference.sh")
+		t.Fatalf("Generator script not found at %s", scriptPath)
 	}
 
 	cmd := exec.Command("bun", "run", scriptPath, filePath)
-	// Run from .reference directory where language-tools and node_modules are installed
-	cmd.Dir = refDir
+	cmd.Dir = projectRoot
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("Failed to run Volar generator: %v\nStderr: %s\n\nTo set up Volar reference, run: ./scripts/setup-volar-reference.sh", err, stderr.String())
+		t.Fatalf("Failed to run Volar generator: %v\nStderr: %s", err, stderr.String())
 	}
 
 	return stdout.String()
 }
 
 func getProjectRoot(t *testing.T) string {
-	// Walk up from current directory to find go.mod
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
 	}
 
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			// Check if this is the golar root (not typescript-go)
-			content, _ := os.ReadFile(filepath.Join(dir, "go.mod"))
+		goMod := filepath.Join(dir, "go.mod")
+		if _, err := os.Stat(goMod); err == nil {
+			content, _ := os.ReadFile(goMod)
 			if strings.Contains(string(content), "github.com/auvred/golar") {
 				return dir
 			}
@@ -192,58 +291,63 @@ func getProjectRoot(t *testing.T) string {
 	}
 }
 
-// checkSemanticEquivalence verifies that key semantic elements are present in both outputs
-func checkSemanticEquivalence(t *testing.T, testName, golarOutput, volarOutput, sourceContent string) {
+// checkSemanticEquivalence verifies key semantic elements are present in both outputs
+func checkSemanticEquivalence(t *testing.T, source, golarOutput, volarOutput string) {
 	t.Helper()
 
-	// Extract variable names from script setup
-	// Both outputs should reference these variables
-	if strings.Contains(sourceContent, "const msg") {
-		if !strings.Contains(golarOutput, "msg") {
-			t.Error("Golar output missing 'msg' reference")
-		}
-		if !strings.Contains(volarOutput, "msg") {
-			t.Error("Volar output missing 'msg' reference")
-		}
+	// Both should have __VLS_ctx for template bindings
+	if !strings.Contains(golarOutput, "__VLS_ctx") {
+		t.Error("Golar output missing __VLS_ctx")
 	}
-
-	if strings.Contains(sourceContent, "const show") {
-		if !strings.Contains(golarOutput, "show") {
-			t.Error("Golar output missing 'show' reference")
-		}
-		if !strings.Contains(volarOutput, "show") {
-			t.Error("Volar output missing 'show' reference")
-		}
-	}
-
-	if strings.Contains(sourceContent, "const items") {
-		if !strings.Contains(golarOutput, "items") {
-			t.Error("Golar output missing 'items' reference")
-		}
-		if !strings.Contains(volarOutput, "items") {
-			t.Error("Volar output missing 'items' reference")
-		}
+	if !strings.Contains(volarOutput, "__VLS_ctx") {
+		t.Error("Volar output missing __VLS_ctx")
 	}
 
 	// Check v-for generates iteration
-	if strings.Contains(sourceContent, "v-for") {
-		// Golar uses __VLS_vFor
-		if !strings.Contains(golarOutput, "__VLS_vFor") && !strings.Contains(golarOutput, "for") {
-			t.Error("Golar output missing v-for iteration construct")
+	if strings.Contains(source, "v-for") {
+		if !strings.Contains(golarOutput, "__VLS_vFor") {
+			t.Error("Golar output missing __VLS_vFor for v-for directive")
+		}
+		if !strings.Contains(volarOutput, "__VLS_vFor") {
+			t.Error("Volar output missing __VLS_vFor for v-for directive")
 		}
 	}
 
 	// Check v-if generates conditional
-	if strings.Contains(sourceContent, "v-if") {
-		if !strings.Contains(golarOutput, "if") {
-			t.Error("Golar output missing v-if conditional")
+	if strings.Contains(source, "v-if") {
+		if !strings.Contains(golarOutput, "if (") && !strings.Contains(golarOutput, "if(") {
+			t.Error("Golar output missing if statement for v-if directive")
+		}
+		if !strings.Contains(volarOutput, "if (") && !strings.Contains(volarOutput, "if(") {
+			t.Error("Volar output missing if statement for v-if directive")
 		}
 	}
 
-	// Check event handlers are present
-	if strings.Contains(sourceContent, "@click") {
-		if !strings.Contains(golarOutput, "click") && !strings.Contains(golarOutput, "Click") {
-			t.Error("Golar output missing click handler reference")
+	// Check v-else generates else block
+	if strings.Contains(source, "v-else") {
+		if !strings.Contains(golarOutput, "else") {
+			t.Error("Golar output missing else for v-else directive")
+		}
+		if !strings.Contains(volarOutput, "else") {
+			t.Error("Volar output missing else for v-else directive")
+		}
+	}
+
+	// Check event handlers
+	if strings.Contains(source, "@click") {
+		// Should have onClick or click in the output
+		hasClick := strings.Contains(golarOutput, "onClick") ||
+			strings.Contains(golarOutput, "Click") ||
+			strings.Contains(golarOutput, "click")
+		if !hasClick {
+			t.Error("Golar output missing click handler")
+		}
+	}
+
+	// Check intrinsic elements
+	if strings.Contains(source, "<div") || strings.Contains(source, "<button") {
+		if !strings.Contains(golarOutput, "__VLS_intrinsics") {
+			t.Error("Golar output missing __VLS_intrinsics for intrinsic elements")
 		}
 	}
 }

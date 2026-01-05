@@ -1,6 +1,7 @@
 package vue_codegen
 
 import (
+	_ "embed"
 	"strings"
 
 	"github.com/auvred/golar/internal/mapping"
@@ -15,31 +16,12 @@ import (
 const GlobalTypesPath = utils.GolarVirtualScheme + "vue-global-types.d.ts"
 const globalTypesReference = "/// <reference types=\"" + GlobalTypesPath + "\" />\n"
 
-// Iterable requires es2015.iterable
-const GlobalTypes = `/// <reference lib="es2015" />
-export {}
-
-declare global {
-	type __VLS_PickNotAny<A, B> = 0 extends 1 & A ? B : A
-
-	// Unwrap Ref/ComputedRef types for template auto-unwrapping
-	// Refs have a .value property with UnwrapRef brand
-	// This checks if T has a 'value' property and extracts its type
-	type __VLS_UnwrapRef<T> = T extends { readonly value: infer V } ? V : T
-
-	function __VLS_vFor<T>(source: T): T extends number
-		? [number, number]
-		: T extends string
-			? [string, number]
-			: T extends any[]
-				? [T[number], number]
-				: T extends Iterable<infer V>
-					? [V, number]
-					: [T[keyof T], ` + "`${keyof T}`" + `, number]
-
-	function __VLS_vSlot<S, D extends S>(slot: S, decl?: D): D extends (...args: infer P) => any ? P : any[]
-}
-`
+// GlobalTypes contains the type definitions required for Vue template type checking.
+// This is copied from Volar's template-helpers.d.ts to ensure 1:1 compatibility.
+// Source: https://github.com/vuejs/language-tools/blob/master/packages/language-core/types/template-helpers.d.ts
+//
+//go:embed types/template-helpers.d.ts
+var GlobalTypes string
 
 func Codegen(sourceText string, root *vue_ast.RootNode) (string, []mapping.Mapping, []*ast.Diagnostic) {
 	ctx := newCodegenCtx(root, sourceText)
@@ -99,9 +81,19 @@ RootChild:
 		}
 	}
 
+	// When both <script> and <script setup> exist, the template code needs to be inside
+	// the async IIFE so it can access __VLS_ctx, __VLS_intrinsics, etc.
+	// Pass templateEl to generateScript so it can include template at the right scope.
+	hasBothScripts := scriptEl != nil && scriptSetupEl != nil
+
 	{
 		c := newCodegenCtx(root, sourceText)
-		generateScript(&c, scriptSetupEl, scriptEl)
+		if hasBothScripts {
+			// Template is generated inside script's async IIFE
+			generateScript(&c, scriptSetupEl, scriptEl, templateEl)
+		} else {
+			generateScript(&c, scriptSetupEl, scriptEl, nil)
+		}
 		newMappingsStart := len(ctx.mappings)
 		ctx.mappings = append(ctx.mappings, c.mappings...)
 		for i := newMappingsStart; i < len(ctx.mappings); i++ {
@@ -111,7 +103,8 @@ RootChild:
 		ctx.diagnostics = append(ctx.diagnostics, c.diagnostics...)
 	}
 
-	{
+	// Only generate template separately if we don't have both script blocks
+	if !hasBothScripts {
 		c := newCodegenCtx(root, sourceText)
 		generateTemplate(&c, templateEl)
 		newMappingsStart := len(ctx.mappings)

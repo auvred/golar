@@ -1,99 +1,76 @@
 #!/bin/bash
 # Setup script for Volar reference implementation
-# Used for comparing Golar's codegen output against the official Volar implementation
+#
+# This downloads and builds the official vuejs/language-tools repository
+# which is used as a reference for comparing Golar's codegen output.
+#
+# The reference is stored in .reference/ which is gitignored.
+# Only the tooling scripts in tools/volar/ are committed.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 REF_DIR="$PROJECT_ROOT/.reference"
+LANG_TOOLS_DIR="$REF_DIR/language-tools"
 
-echo "Setting up Volar reference in $REF_DIR..."
+echo "============================================"
+echo "Golar - Volar Reference Setup"
+echo "============================================"
+echo ""
 
-mkdir -p "$REF_DIR"
-cd "$REF_DIR"
-
-if [ ! -d "language-tools" ]; then
-    echo "Cloning vuejs/language-tools..."
-    git clone --depth 1 https://github.com/vuejs/language-tools.git
+# Check for bun
+if ! command -v bun &> /dev/null; then
+    echo "Error: bun is required but not installed."
+    echo "Install it from: https://bun.sh"
+    exit 1
 fi
 
-cd language-tools
+# Create reference directory
+mkdir -p "$REF_DIR"
 
-echo "Installing dependencies..."
+# Clone or update language-tools
+if [ -d "$LANG_TOOLS_DIR" ]; then
+    echo "Updating existing language-tools..."
+    cd "$LANG_TOOLS_DIR"
+    git fetch origin
+    git reset --hard origin/master
+else
+    echo "Cloning vuejs/language-tools..."
+    git clone --depth 1 https://github.com/vuejs/language-tools.git "$LANG_TOOLS_DIR"
+    cd "$LANG_TOOLS_DIR"
+fi
+
+echo ""
+echo "Installing dependencies with bun..."
 bun install
 
-echo "Installing additional required packages..."
-bun add typescript @vue/compiler-dom @vue/compiler-sfc alien-signals path-browserify muggle-string
+echo ""
+echo "Building language-tools..."
+bun run build
 
-# Create the generator script
-cat > ../generate_volar.ts << 'EOF'
-/**
- * Volar codegen reference generator
- * 
- * Generates TypeScript service code using the official Volar/Vue language-tools.
- * Usage: bun run generate_volar.ts <vue-file>
- */
-
-import * as fs from 'fs';
-import * as ts from 'typescript';
-import { createVueLanguagePlugin, getDefaultCompilerOptions } from './language-tools/packages/language-core';
-import { forEachEmbeddedCode } from '@volar/language-core';
-
-function getVolarOutput(filePath: string): string {
-  const content = fs.readFileSync(filePath, 'utf-8');
-  
-  const snapshot: ts.IScriptSnapshot = {
-    getText: (start, end) => content.slice(start, end),
-    getLength: () => content.length,
-    getChangeRange: () => undefined,
-  };
-  
-  const compilerOptions: ts.CompilerOptions = {
-    target: ts.ScriptTarget.ESNext,
-    module: ts.ModuleKind.ESNext,
-    strict: true,
-  };
-  
-  const vueCompilerOptions = getDefaultCompilerOptions();
-  
-  const plugin = createVueLanguagePlugin(
-    ts,
-    compilerOptions,
-    vueCompilerOptions,
-    (id: string) => id,
-  );
-  
-  const virtualCode = plugin.createVirtualCode(filePath, 'vue', snapshot);
-  
-  if (!virtualCode) {
-    throw new Error('Failed to create virtual code');
-  }
-  
-  for (const code of forEachEmbeddedCode(virtualCode)) {
-    if (code.id.startsWith('script_')) {
-      return code.snapshot.getText(0, code.snapshot.getLength());
-    }
-  }
-  
-  return '';
-}
-
-const filePath = process.argv[2];
-if (!filePath) {
-  console.error('Usage: bun run generate_volar.ts <vue-file>');
-  process.exit(1);
-}
-
-const output = getVolarOutput(filePath);
-console.log(output);
-EOF
+# Install additional packages needed for our scripts in the .reference directory
+cd "$REF_DIR"
+echo ""
+echo "Installing script dependencies..."
+bun add typescript @volar/language-core
 
 echo ""
+echo "============================================"
 echo "Setup complete!"
+echo "============================================"
 echo ""
-echo "To generate Volar output for a Vue file:"
-echo "  cd .reference && bun run generate_volar.ts <path-to-vue-file>"
+echo "Usage:"
 echo ""
-echo "To run comparison tests:"
-echo "  go test ./internal/vue/tests/volar_comparison/... -v"
+echo "  Generate Volar output for a Vue file:"
+echo "    bun run tools/volar/generate_volar.ts <vue-file>"
+echo ""
+echo "  Generate Golar output for a Vue file:"
+echo "    go run ./cmd/test_codegen <vue-file> --service"
+echo ""
+echo "  Compare Golar vs Volar output:"
+echo "    bun run tools/volar/compare_codegen.ts <vue-file>"
+echo ""
+echo "  Run Volar compatibility tests:"
+echo "    go test ./internal/vue/tests/volar_comparison/... -v"
+echo ""
