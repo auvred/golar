@@ -4,12 +4,16 @@ This document contains the roadmap and detailed tasks for Golar development. Tas
 
 ## Current Status
 
-Golar can now parse Vue SFCs and generate TypeScript service code for type checking. Basic directives (`v-if`, `v-for`, `v-on`) are supported. The main remaining work is achieving 1:1 compatibility with Volar's codegen output.
+Golar can now parse Vue SFCs and generate TypeScript service code for type checking. Basic directives (`v-if`, `v-for`, `v-on`) are supported. Element type checking with `__VLS_asFunctionalElement1` is now implemented.
 
 ### Recent Fixes (Jan 2025)
 - Fixed parser `InnerLoc` bug for SFC root elements
 - Fixed entity handling (`&&`) in attribute values causing parse failures  
 - Fixed ASI issues with interpolation expressions followed by blocks
+- **Aligned variable naming**: Changed `__VLS_Ctx` to `__VLS_ctx` (lowercase) to match Volar
+- **Updated SetupExposed type**: Now uses `import('vue').ShallowUnwrapRef<{...}>` instead of custom `__VLS_UnwrapRef`
+- **Added component/directive declarations**: `__VLS_LocalComponents`, `__VLS_GlobalComponents`, `__VLS_components`, `__VLS_intrinsics`, `__VLS_directives`, `__VLS_StyleScopedClasses`
+- **Added element type checking**: `__VLS_asFunctionalElement1(__VLS_intrinsics.TAG, ...)` calls for HTML elements
 
 ---
 
@@ -17,27 +21,19 @@ Golar can now parse Vue SFCs and generate TypeScript service code for type check
 
 **Goal**: Achieve 1:1 output compatibility with Volar's codegen so that Golar produces identical TypeScript service code.
 
-### Task: Align Variable Naming
+### Task: Align Variable Naming - COMPLETED
 
-**Current**: Golar uses `__VLS_Ctx`, Volar uses `__VLS_ctx`
+~~**Current**: Golar uses `__VLS_Ctx`, Volar uses `__VLS_ctx`~~
 
-**Files to modify**: `internal/vue/codegen/template.go`, `internal/vue/codegen/script.go`
+Updated to use `__VLS_ctx` (lowercase) throughout.
 
-**Steps**:
-1. Run comparison: `go test ./internal/vue/tests/volar_comparison/... -v`
-2. Identify all `__VLS_*` variable naming differences
-3. Update Golar to match Volar's naming conventions
-4. Verify tests pass
+### Task: Match Type Helper Structure - COMPLETED
 
-### Task: Match Type Helper Structure
-
-**Current**: Golar generates simpler type helpers, Volar generates more comprehensive ones
-
-**Files to modify**: `internal/vue/codegen/codegen.go` (GlobalTypes constant)
-
-**Volar generates**:
+**Golar now generates**:
 ```typescript
-type __VLS_SetupExposed = import('vue').ShallowUnwrapRef<{...}>;
+type __VLS_SetupExposed = import('vue').ShallowUnwrapRef<{
+  name: typeof name;
+}>;
 const __VLS_ctx = {
   ...{} as import('vue').ComponentPublicInstance,
   ...{} as __VLS_SetupExposed,
@@ -46,28 +42,28 @@ type __VLS_LocalComponents = __VLS_SetupExposed;
 type __VLS_GlobalComponents = import('vue').GlobalComponents;
 let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;
 let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;
+type __VLS_LocalDirectives = __VLS_SetupExposed;
+let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;
+type __VLS_StyleScopedClasses = {};
 ```
 
-**Golar currently generates**:
+### Task: Element/Intrinsic Handling - COMPLETED
+
+**Golar now generates**:
 ```typescript
-type __VLS_SetupExposed = {
-  msg: __VLS_UnwrapRef<typeof msg>
-}
-const __VLS_Ctx = {
-  ...{} as unknown as __VLS_SetupExposed,
-  ...{} as unknown as import('vue').ComponentPublicInstance,
-}
+__VLS_asFunctionalElement1(__VLS_intrinsics.div, __VLS_intrinsics.div)({
+...{ class: "my-class" },
+...{ onClick: (handler) },
+});
 ```
 
-**Steps**:
-1. Study Volar's `packages/language-core/lib/codegen/script/` directory
-2. Update `GlobalTypes` in `codegen.go`
-3. Update script codegen to match structure
-4. Run comparison tests
+### Task: StyleScopedClasses Comments (Low Priority)
 
-### Task: Element/Intrinsic Handling
+**Current**: Golar doesn't generate `/** @type {__VLS_StyleScopedClasses['className']} */` comments
 
-**Current**: Golar doesn't generate element type checks
+**Volar generates** these comments after each element for CSS class type checking. This is a nice-to-have feature but not critical for type checking functionality.
+
+### Task: Expression Wrapping Style (Low Priority)
 
 **Volar generates**:
 ```typescript
@@ -83,12 +79,7 @@ __VLS_asFunctionalElement1(__VLS_intrinsics.div, __VLS_intrinsics.div)({});
 
 **Current**: Golar uses `;( expr );`, Volar uses `( expr );`
 
-**Files**: `internal/vue/codegen/template.go`
-
-**Steps**:
-1. Change interpolation output from `;( expr );` to `( expr );`
-2. Ensure this doesn't reintroduce ASI issues
-3. Run all tests
+This difference is intentional - the leading semicolon prevents ASI issues when an expression is followed by a block. The output is functionally equivalent.
 
 ---
 

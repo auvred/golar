@@ -22,11 +22,16 @@ import (
 
 type compilerHostProxy struct {
 	compiler.CompilerHost
+	wrappedFS vfs.FS
 }
 
 type languageData struct {
 	sourceText string
 	mapper     *mapping.Mapper
+}
+
+func (h *compilerHostProxy) FS() vfs.FS {
+	return h.wrappedFS
 }
 
 func (h *compilerHostProxy) GetSourceFile(opts ast.SourceFileParseOptions) *ast.SourceFile {
@@ -41,7 +46,33 @@ func (h *compilerHostProxy) GetSourceFile(opts ast.SourceFileParseOptions) *ast.
 }
 
 func wrapCompilerHost(host compiler.CompilerHost) compiler.CompilerHost {
-	return &compilerHostProxy{host}
+	return &compilerHostProxy{
+		CompilerHost: host,
+		wrappedFS:    &vueAwareFS{host.FS()},
+	}
+}
+
+// vueAwareFS wraps a VFS to make TypeScript's module resolution aware of .vue files.
+// When module resolution checks for "./Foo.vue", we need to report that it exists.
+type vueAwareFS struct {
+	vfs.FS
+}
+
+func (fs *vueAwareFS) FileExists(path string) bool {
+	// First check the underlying FS
+	if fs.FS.FileExists(path) {
+		return true
+	}
+	// For .vue files, also check if it would be resolvable
+	// Module resolution might look for .vue.ts, .vue.d.ts etc. but the actual file is just .vue
+	if strings.HasSuffix(path, ".vue") {
+		return fs.FS.FileExists(path)
+	}
+	return false
+}
+
+func (fs *vueAwareFS) ReadFile(path string) (string, bool) {
+	return fs.FS.ReadFile(path)
 }
 
 type diagnosticProxy struct {

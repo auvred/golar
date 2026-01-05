@@ -256,6 +256,12 @@ Event handlers require special handling based on expression type:
 
 8. **Syntax errors block semantic diagnostics** - TypeScript's `GetDiagnosticsOfAnyProgram()` exits early if there are syntax errors (TS1xxx), preventing semantic errors (TS2xxx) from being reported. Fix syntax errors in codegen first.
 
+9. **Property name quoting** - HTML attributes and Vue event names may contain characters invalid in JS identifiers (hyphens, colons). These must be quoted: `aria-label` → `"aria-label"`, `onUpdate:open` → `"onUpdate:open"`.
+
+10. **Vue's camelize only handles hyphens** - Vue's `camelize()` from `@vue/shared` uses regex `/-\w/g` - it only converts hyphens, NOT colons. Event names like `update:open` become `onUpdate:open` (colon preserved), not `onUpdateOpen`. Always check `@vue/shared` source when implementing string transformations.
+
+11. **Line preservation vs character preservation** - Golar preserves line counts (newlines) but NOT character counts per line. Long lines (like minified CSS) should not be replaced with equivalent spaces - just use empty lines. Character-level mapping is handled by source maps.
+
 ## Volar Comparison Testing
 
 The `.reference/` directory (gitignored) contains the official Volar/Vue language-tools for comparing Golar's codegen output against the reference implementation.

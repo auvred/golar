@@ -310,20 +310,21 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		}
 
 		if len(bindingRanges) > 0 {
-			c.serviceText.WriteString("type __VLS_SetupExposed = {\n")
-			// Unwrap refs for template auto-unwrapping behavior
+			// Use Vue's ShallowUnwrapRef for automatic ref unwrapping in templates
+			c.serviceText.WriteString("type __VLS_SetupExposed = import('vue').ShallowUnwrapRef<{\n")
 			for _, binding := range bindingRanges {
 				c.serviceText.WriteString(c.sourceText[innerStart+binding.Pos() : innerStart+binding.End()])
-				c.serviceText.WriteString(": __VLS_UnwrapRef<typeof ")
+				c.serviceText.WriteString(": typeof ")
 				c.serviceText.WriteString(c.sourceText[innerStart+binding.Pos() : innerStart+binding.End()])
-				c.serviceText.WriteString(">\n")
+				c.serviceText.WriteString(";\n")
 			}
-			c.serviceText.WriteString("}\n")
+			c.serviceText.WriteString("}>;\n")
 		}
 
-		c.serviceText.WriteString("const __VLS_Ctx = {\n")
+		c.serviceText.WriteString("const __VLS_ctx = {\n")
+		c.serviceText.WriteString("...{} as import('vue').ComponentPublicInstance,\n")
 		if len(bindingRanges) > 0 {
-			c.serviceText.WriteString("...{} as unknown as __VLS_SetupExposed,\n")
+			c.serviceText.WriteString("...{} as __VLS_SetupExposed,\n")
 		}
 		// Add props to context
 		if hasPropsType {
@@ -336,7 +337,24 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		} else {
 			c.serviceText.WriteString("...{} as unknown as import('vue').ComponentPublicInstance,\n")
 		}
-		c.serviceText.WriteString("}\n")
+		c.serviceText.WriteString("};\n")
+
+		// Add component/directive/intrinsic type declarations
+		if len(bindingRanges) > 0 {
+			c.serviceText.WriteString("type __VLS_LocalComponents = __VLS_SetupExposed;\n")
+		} else {
+			c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
+		}
+		c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
+		c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
+		c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
+		if len(bindingRanges) > 0 {
+			c.serviceText.WriteString("type __VLS_LocalDirectives = __VLS_SetupExposed;\n")
+		} else {
+			c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
+		}
+		c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
+		c.serviceText.WriteString("type __VLS_StyleScopedClasses = {};\n")
 
 		if c.scriptEl != nil {
 			c.serviceText.WriteString("\n})()\n")

@@ -1,11 +1,13 @@
 package vue_codegen
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/auvred/golar/internal/collections"
 	"github.com/auvred/golar/internal/vue/ast"
 	"github.com/auvred/golar/internal/vue/diagnostics"
 	"github.com/microsoft/typescript-go/shim/ast"
-	"slices"
 )
 
 type templateCodegenCtx struct {
@@ -179,6 +181,12 @@ func (c *templateCodegenCtx) visit(el *vue_ast.ElementNode) {
 				c.mapExpressionInNonBindingPosition(forDirective.Source)
 				c.serviceText.WriteString(")\n")
 			}
+			// Generate element type checking call
+			// Skip template elements (used for v-if/v-for grouping)
+			if elem.Tag != "template" {
+				c.generateElementCall(elem)
+			}
+
 			// Generate event handlers
 			for _, eventDir := range eventDirectives {
 				c.generateEventHandler(eventDir)
@@ -341,7 +349,7 @@ func (m *expressionMapper) mapInNonBindingPosition(node *ast.Node) bool {
 	case ast.KindIdentifier:
 		if m.shouldPrefixIdentifier(node) {
 			m.mapTextToNodePos(node.Pos())
-			m.serviceText.WriteString(" __VLS_Ctx.")
+			m.serviceText.WriteString(" __VLS_ctx.")
 			m.mapTextToNodePos(node.End())
 		}
 		return false
@@ -350,7 +358,7 @@ func (m *expressionMapper) mapInNonBindingPosition(node *ast.Node) bool {
 		if m.shouldPrefixIdentifier(name) {
 			m.mapTextToNodePos(node.Pos())
 			m.serviceText.WriteString(name.Text())
-			m.serviceText.WriteString(": __VLS_Ctx.")
+			m.serviceText.WriteString(": __VLS_ctx.")
 			m.mapTextToNodePos(node.End())
 		}
 		return false
@@ -539,10 +547,10 @@ func (c *templateCodegenCtx) generateSlot(dir *vue_ast.DirectiveNode, elem *vue_
 		slotName = c.sourceText[dir.Arg.Loc.Pos():dir.Arg.Loc.End()]
 	}
 
-	// Extract slot from context: const { slotName: __VLS_slot } = __VLS_Ctx.slots!
+	// Extract slot from context: const { slotName: __VLS_slot } = __VLS_ctx.slots!
 	c.serviceText.WriteString("const { ")
 	c.serviceText.WriteString(slotName)
-	c.serviceText.WriteString(": __VLS_slot } = __VLS_Ctx.slots!\n")
+	c.serviceText.WriteString(": __VLS_slot } = __VLS_ctx.slots!\n")
 
 	// Generate slot props binding if expression exists
 	c.enterScope()
@@ -560,4 +568,189 @@ func (c *templateCodegenCtx) generateSlot(dir *vue_ast.DirectiveNode, elem *vue_
 
 	c.exitScope()
 	c.serviceText.WriteString("}\n")
+}
+
+// generateElementCall generates a __VLS_asFunctionalElement1 call for intrinsic HTML elements.
+// This provides type checking for element props and enables proper TypeScript type inference.
+// Based on Volar's element.ts generateElement function.
+func (c *templateCodegenCtx) generateElementCall(elem *vue_ast.ElementNode) {
+	tag := elem.Tag
+
+	// Generate: __VLS_asFunctionalElement1(__VLS_intrinsics.TAG, __VLS_intrinsics.TAG)({...props...});
+	c.serviceText.WriteString("__VLS_asFunctionalElement1(__VLS_intrinsics.")
+	c.serviceText.WriteString(tag)
+	c.serviceText.WriteString(", __VLS_intrinsics.")
+	c.serviceText.WriteString(tag)
+	c.serviceText.WriteString(")({\n")
+
+	// Generate props
+	for _, p := range elem.Props {
+		if p.Kind == vue_ast.KindAttribute {
+			attr := p.AsAttribute()
+			c.generateElementAttribute(attr)
+		} else if p.Kind == vue_ast.KindDirective {
+			dir := p.AsDirective()
+			c.generateElementDirectiveProp(dir)
+		}
+	}
+
+	c.serviceText.WriteString("});\n")
+}
+
+// toCamelCase converts a kebab-case string to camelCase
+// e.g., "overlay-click" -> "overlayClick"
+// toCamelCase converts a kebab-case string to camelCase.
+// Only hyphens trigger capitalization - this matches Vue's camelize() from @vue/shared.
+// Colons are preserved (e.g., "update:open" stays as "update:open", not "updateOpen").
+// e.g., "overlay-click" -> "overlayClick"
+// e.g., "on-overlay-click" -> "onOverlayClick"
+// e.g., "on-update:open" -> "onUpdate:open" (colon preserved)
+func toCamelCase(s string) string {
+	if !strings.Contains(s, "-") {
+		return s
+	}
+	var result strings.Builder
+	capitalizeNext := false
+	for _, ch := range s {
+		if ch == '-' {
+			capitalizeNext = true
+		} else if capitalizeNext {
+			if ch >= 'a' && ch <= 'z' {
+				result.WriteRune(ch - 32) // Convert to uppercase
+			} else {
+				result.WriteRune(ch)
+			}
+			capitalizeNext = false
+		} else {
+			result.WriteRune(ch)
+		}
+	}
+	return result.String()
+}
+
+// needsQuotes returns true if the property name needs to be quoted in JS
+// (contains hyphens, starts with number, has special chars, etc.)
+func needsQuotes(name string) bool {
+	if len(name) == 0 {
+		return true
+	}
+	// Check first character - must be letter, underscore, or $
+	first := name[0]
+	if !((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || first == '_' || first == '$') {
+		return true
+	}
+	// Check rest - must be alphanumeric, underscore, or $
+	for i := 1; i < len(name); i++ {
+		ch := name[i]
+		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '$') {
+			return true
+		}
+	}
+	return false
+}
+
+// writePropertyName writes a property name, quoting it if necessary
+func (c *templateCodegenCtx) writePropertyName(name string) {
+	if needsQuotes(name) {
+		c.serviceText.WriteString("\"")
+		c.serviceText.WriteString(name)
+		c.serviceText.WriteString("\"")
+	} else {
+		c.serviceText.WriteString(name)
+	}
+}
+
+// escapeStringLiteral escapes a string for use in a JS string literal.
+// Handles newlines, quotes, and backslashes.
+func escapeStringLiteral(s string) string {
+	var result strings.Builder
+	for _, ch := range s {
+		switch ch {
+		case '\n':
+			result.WriteString("\\n")
+		case '\r':
+			result.WriteString("\\r")
+		case '\t':
+			result.WriteString("\\t")
+		case '"':
+			result.WriteString("\\\"")
+		case '\\':
+			result.WriteString("\\\\")
+		default:
+			result.WriteRune(ch)
+		}
+	}
+	return result.String()
+}
+
+// generateElementAttribute generates a prop for a static HTML attribute.
+// e.g., class="foo" -> ...{ class: "foo" },
+// e.g., aria-label="text" -> ...{ "aria-label": "text" },
+func (c *templateCodegenCtx) generateElementAttribute(attr *vue_ast.AttributeNode) {
+	c.serviceText.WriteString("...{ ")
+	c.writePropertyName(attr.Name)
+	c.serviceText.WriteString(": ")
+	if attr.Value != nil {
+		c.serviceText.WriteString("\"")
+		c.serviceText.WriteString(escapeStringLiteral(attr.Value.Content))
+		c.serviceText.WriteString("\"")
+	} else {
+		c.serviceText.WriteString("true")
+	}
+	c.serviceText.WriteString(" },\n")
+}
+
+// generateElementDirectiveProp generates a prop for a v-bind or v-on directive.
+// e.g., :disabled="isDisabled" -> disabled: (__VLS_ctx.isDisabled),
+// e.g., @click="handler" -> ...{ onClick: (handler) },
+func (c *templateCodegenCtx) generateElementDirectiveProp(dir *vue_ast.DirectiveNode) {
+	switch dir.Name {
+	case "bind":
+		// v-bind / :attr
+		if dir.Arg != nil && dir.ArgIsStatic && dir.Expression != nil {
+			argName := c.sourceText[dir.Arg.Loc.Pos():dir.Arg.Loc.End()]
+			// Special handling for class/style - use spread
+			if argName == "class" || argName == "style" {
+				c.serviceText.WriteString("...{ ")
+				c.writePropertyName(argName)
+				c.serviceText.WriteString(": (")
+				c.mapExpressionInNonBindingPosition(dir.Expression)
+				c.serviceText.WriteString(") },\n")
+			} else {
+				c.writePropertyName(argName)
+				c.serviceText.WriteString(": (")
+				c.mapExpressionInNonBindingPosition(dir.Expression)
+				c.serviceText.WriteString("),\n")
+			}
+		}
+	case "on":
+		// v-on / @event - generate prop for element type checking
+		if dir.Arg != nil && dir.ArgIsStatic && dir.Expression != nil {
+			eventName := c.sourceText[dir.Arg.Loc.Pos():dir.Arg.Loc.End()]
+			// Convert to onEventName format using camelize (matches Vue's @vue/shared camelize)
+			// e.g., "overlay-click" -> "onOverlayClick"
+			// e.g., "update:open" -> "onUpdate:open" (colon preserved, will be quoted)
+			propName := toCamelCase("on-" + eventName)
+			c.serviceText.WriteString("...{ ")
+			c.writePropertyName(propName)
+			c.serviceText.WriteString(": ")
+
+			// Check if compound expression - needs arrow function wrapper
+			isCompound := c.isCompoundExpression(dir.Expression.Ast)
+			if isCompound {
+				// Compound expression: wrap in arrow function
+				// e.g., "count++; foo = bar" -> "(...[$event]) => { count++; foo = bar }"
+				c.serviceText.WriteString("(...[$event]) => {\n")
+				c.mapExpressionInNonBindingPosition(dir.Expression)
+				c.serviceText.WriteString("\n}")
+			} else {
+				// Simple expression: use directly
+				// e.g., "handleClick" -> "(handleClick)"
+				c.serviceText.WriteString("(")
+				c.mapExpressionInNonBindingPosition(dir.Expression)
+				c.serviceText.WriteString(")")
+			}
+			c.serviceText.WriteString(" },\n")
+		}
+	}
 }

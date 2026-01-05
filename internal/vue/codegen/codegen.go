@@ -89,22 +89,14 @@ RootChild:
 		}
 	}
 
-	// https://github.com/volarjs/volar.js/discussions/188
-	lineStart := 0
-	for {
-		idx := strings.IndexByte(sourceText[lineStart:], '\n')
-		if idx == -1 {
-			for range len(sourceText) - lineStart {
-				ctx.serviceText.WriteByte(' ')
-			}
-			break
+	// Preserve line count for basic line correspondence (errors show on correct line)
+	// We only preserve newlines, not character counts - this prevents issues with
+	// very long lines (like minified CSS) causing TypeScript parse errors.
+	// Character-level mapping is handled by the source map system.
+	for _, ch := range sourceText {
+		if ch == '\n' {
+			ctx.serviceText.WriteByte('\n')
 		}
-		idx += lineStart
-		for range idx - lineStart {
-			ctx.serviceText.WriteByte(' ')
-		}
-		ctx.serviceText.WriteByte('\n')
-		lineStart = idx + 1
 	}
 
 	{
