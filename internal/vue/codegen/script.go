@@ -144,11 +144,13 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 
 	// Handle template-only components (no <script> or <script setup>)
 	if c.scriptEl == nil && c.scriptSetupEl == nil {
-		c.serviceText.WriteString("const __VLS_Export = __VLS_DefineComponent({})\n")
-		c.serviceText.WriteString("const __VLS_Ctx = {\n")
-		c.serviceText.WriteString("...{} as unknown as import('vue').ComponentPublicInstance,\n")
-		c.serviceText.WriteString("}\n")
-		c.serviceText.WriteString("export default {} as unknown as typeof __VLS_Export\n")
+		c.serviceText.WriteString("const __VLS_ctx = {} as import('vue').ComponentPublicInstance;\n")
+		c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
+		c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
+		c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
+		c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
+		c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
+		c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
 		return
 	}
 
@@ -203,6 +205,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 			// When both exist, script setup will create __VLS_Export
 			if !hasExportDefault && c.scriptSetupEl == nil {
 				c.serviceText.WriteString("const __VLS_Export = __VLS_DefineComponent({})\nexport default __VLS_Export\n")
+				selfType = "__VLS_Export"
 			}
 
 			// TODO: options wrapper - wrap export default |defineComponent(|{}|)|
@@ -226,11 +229,31 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 	if c.scriptSetupEl != nil {
 		// Handle empty <script setup>
 		if len(c.scriptSetupEl.Children) == 0 {
-			c.serviceText.WriteString("const __VLS_Export = __VLS_DefineComponent({})\n")
-			c.serviceText.WriteString("const __VLS_Ctx = {\n")
-			c.serviceText.WriteString("...{} as unknown as import('vue').ComponentPublicInstance,\n")
-			c.serviceText.WriteString("}\n")
-			c.serviceText.WriteString("export default {} as unknown as Awaited<typeof __VLS_Export>\n")
+			if c.scriptEl != nil && selfType != "" {
+				// Empty <script setup> with regular <script>
+				// Generate the async IIFE wrapper with ctx based on the regular script's export
+				c.serviceText.WriteString("const __VLS_export = await (async () => {\n")
+				c.serviceText.WriteString("const __VLS_ctx = {} as InstanceType<__VLS_PickNotAny<typeof ")
+				c.serviceText.WriteString(selfType)
+				c.serviceText.WriteString(", new () => {}>>;\n")
+				c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
+				c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
+				c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
+				c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
+				c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
+				c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
+				c.serviceText.WriteString("return (await import('vue')).defineComponent({});\n")
+				c.serviceText.WriteString("})();\n")
+			} else {
+				// Just empty <script setup> with no regular script
+				c.serviceText.WriteString("const __VLS_ctx = {} as import('vue').ComponentPublicInstance;\n")
+				c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
+				c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
+				c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
+				c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
+				c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
+				c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
+			}
 			return
 		}
 		if len(c.scriptSetupEl.Children) != 1 {
@@ -343,12 +366,20 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 
 		// Generate props type if defineProps was found with type argument
 		hasPropsType := false
+		hasRuntimeProps := false
 		if propsInfo != nil && propsInfo.typeArgRange != nil {
 			hasPropsType = true
 			c.serviceText.WriteString("type __VLS_Props = ")
 			// Map the type argument from source
 			c.mapText(innerStart+propsInfo.typeArgRange.Pos(), innerStart+propsInfo.typeArgRange.End())
 			c.serviceText.WriteString("\n")
+		} else if propsInfo != nil && propsInfo.runtimeArgRange != nil {
+			// For runtime defineProps, we need to create a props variable
+			// This will be typed by Vue's ExtractPropTypes
+			hasRuntimeProps = true
+			c.serviceText.WriteString("const __VLS_props = defineProps(")
+			c.mapText(innerStart+propsInfo.runtimeArgRange.Pos(), innerStart+propsInfo.runtimeArgRange.End())
+			c.serviceText.WriteString(");\n")
 		}
 
 		if len(bindingRanges) > 0 {
@@ -371,6 +402,8 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		// Add props to context
 		if hasPropsType {
 			c.serviceText.WriteString("...{} as unknown as __VLS_Props,\n")
+		} else if hasRuntimeProps {
+			c.serviceText.WriteString("...{} as typeof __VLS_props,\n")
 		}
 		if selfType != "" {
 			c.serviceText.WriteString("...{} as unknown as InstanceType<__VLS_PickNotAny<typeof ")
