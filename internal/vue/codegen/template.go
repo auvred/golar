@@ -247,12 +247,13 @@ func (c *templateCodegenCtx) visit(el *vue_ast.ElementNode) {
 			for _, eventDir := range eventDirectives {
 				c.generateEventHandler(eventDir)
 			}
-			// TODO: Implement proper slot handling
-			// For now, skip slot directive processing - just visit children normally
-			// Slot content providers (<template #slotName> inside components) don't need special codegen
-			// Slot prop receivers need more complex handling with component type inference
-			_ = slotDirective
-			c.visit(elem)
+			// Handle slot directives (v-slot, #slotName)
+			if slotDirective != nil && slotDirective.Expression != nil {
+				// Slot with props binding (e.g., #default="{ field }")
+				c.generateSlot(slotDirective, elem)
+			} else {
+				c.visit(elem)
+			}
 			if forDirective != nil {
 				c.exitScope()
 				c.serviceText.WriteString("}\n") // Close the for loop
@@ -604,8 +605,15 @@ func (c *templateCodegenCtx) generateSlot(dir *vue_ast.DirectiveNode, elem *vue_
 	}
 
 	// Extract slot from context: const { slotName: __VLS_slot } = __VLS_ctx.slots!
+	// Quote slot name if it contains special characters like hyphens
 	c.serviceText.WriteString("const { ")
-	c.serviceText.WriteString(slotName)
+	if needsQuotes(slotName) {
+		c.serviceText.WriteString("\"")
+		c.serviceText.WriteString(slotName)
+		c.serviceText.WriteString("\"")
+	} else {
+		c.serviceText.WriteString(slotName)
+	}
 	c.serviceText.WriteString(": __VLS_slot } = __VLS_ctx.slots!\n")
 
 	// Generate slot props binding if expression exists
