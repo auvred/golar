@@ -33,7 +33,7 @@ Golar is under active development. Below is the current status of Vue SFC featur
 | Template interpolations `{{ }}` | Supported | Expression type checking with identifier prefixing |
 | `v-if` / `v-else-if` / `v-else` | Supported | Conditional rendering with proper scoping |
 | `v-for` | Supported | Loop iteration with destructuring support |
-| `v-on` / `@` event handlers | Supported | Both simple (function ref) and compound (inline statements) expressions |
+| `v-on` / `@` event handlers | Supported | Both simple (function ref) and compound (inline statements) with proper `$event` typing |
 | `defineProps` (type-only) | Supported | `defineProps<{ prop: Type }>()` syntax |
 | `withDefaults` | Supported | `withDefaults(defineProps<T>(), {...})` syntax |
 | `.vue` module imports | Supported | Default export generated for all components |
@@ -47,8 +47,9 @@ Golar is under active development. Below is the current status of Vue SFC featur
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `v-slot` / `#` slots | Partial | Slot content syntax parsed but slot props not yet typed |
+| `v-slot` / `#` slots | Partial | Slot props with type annotations supported via Volar-compatible codegen |
 | `v-bind` / `:` bindings | Partial | Basic attribute binding works |
+| `defineProps` (runtime) | Partial | `defineProps({...})` syntax extracts prop names |
 
 ### Not Yet Supported
 

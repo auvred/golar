@@ -620,11 +620,10 @@ func (c *templateCodegenCtx) generateSlot(dir *vue_ast.DirectiveNode, elem *vue_
 	c.enterScope()
 	if dir.Expression != nil && dir.Expression.Ast != nil {
 		// Parse slot props expression and declare bindings
-		// The expression is parsed as (props) => {} so we use mapExpressionInBindingPosition
-		// which already handles extracting the parameter from an arrow function
-		c.serviceText.WriteString("const [")
-		c.mapExpressionInBindingPosition(dir.Expression)
-		c.serviceText.WriteString("] = __VLS_vSlot(__VLS_slot!)\n")
+		// Following Volar's approach for typed slots:
+		// - Extract binding pattern without type annotation
+		// - If type exists, pass it as callback: __VLS_vSlot(slot!, (_: Type) => [] as any)
+		c.generateSlotParameters(dir.Expression)
 	}
 
 	// Visit children within slot scope
@@ -632,6 +631,67 @@ func (c *templateCodegenCtx) generateSlot(dir *vue_ast.DirectiveNode, elem *vue_
 
 	c.exitScope()
 	c.serviceText.WriteString("}\n")
+}
+
+// generateSlotParameters generates slot props binding following Volar's approach.
+// For typed slots like `v-slot="{ item }: { item: Type }"`:
+// - Output: const [{ item }] = __VLS_vSlot(__VLS_slot!, (_: { item: Type }, ) => [] as any)
+// For untyped slots like `v-slot="{ item }"`:
+// - Output: const [{ item }] = __VLS_vSlot(__VLS_slot!)
+func (c *templateCodegenCtx) generateSlotParameters(expr *vue_ast.SimpleExpressionNode) {
+	// Try to extract typed slot parameters following Volar's approach
+	if len(expr.Ast.Statements.Nodes) > 0 {
+		firstStmt := expr.Ast.Statements.Nodes[0]
+		if ast.IsExpressionStatement(firstStmt) {
+			exprNode := firstStmt.AsExpressionStatement().Expression
+			if ast.IsArrowFunction(exprNode) {
+				fn := exprNode.AsArrowFunction()
+				if len(fn.Parameters.Nodes) > 0 && ast.IsParameter(fn.Parameters.Nodes[0]) {
+					param := fn.Parameters.Nodes[0].AsParameterDeclaration()
+					bindingName := param.Name()
+					paramType := param.Type // Type annotation, if present
+
+					// Output: const [binding] = __VLS_vSlot(__VLS_slot!, optionalTypeCallback)
+					c.serviceText.WriteString("const [")
+
+					// Map the binding pattern and declare scope variables
+					m := newExpressionMapper(c, expr)
+					m.mapInBindingPosition(bindingName)
+					// End at the binding name, not including type annotation
+					m.mapTextToNodePos(bindingName.End())
+
+					c.serviceText.WriteString("] = __VLS_vSlot(__VLS_slot!")
+
+					// If there's a type annotation, add the callback pattern
+					if paramType != nil {
+						c.serviceText.WriteString(", (_")
+						// Extract type annotation text from source
+						// AST positions are relative to the parsed "(expr) => {}" string
+						// We need to map back to source positions
+						typeStartInAst := bindingName.End()
+						typeEndInAst := paramType.End()
+						// The AST text starts at position expr.PrefixLen (which is 1 for the opening paren)
+						// So source position = expr.Loc.Pos() + (astPos - expr.PrefixLen)
+						sourceStart := expr.Loc.Pos() + (typeStartInAst - expr.PrefixLen)
+						sourceEnd := expr.Loc.Pos() + (typeEndInAst - expr.PrefixLen)
+						if sourceStart >= 0 && sourceEnd <= len(c.sourceText) && sourceStart < sourceEnd {
+							typeText := c.sourceText[sourceStart:sourceEnd]
+							c.serviceText.WriteString(typeText)
+						}
+						c.serviceText.WriteString(", ) => [] as any")
+					}
+
+					c.serviceText.WriteString(")\n")
+					return
+				}
+			}
+		}
+	}
+
+	// Fallback: use the original approach for non-standard cases
+	c.serviceText.WriteString("const [")
+	c.mapExpressionInBindingPosition(expr)
+	c.serviceText.WriteString("] = __VLS_vSlot(__VLS_slot!)\n")
 }
 
 // writeIntrinsicAccess writes access to __VLS_intrinsics for a tag name.
@@ -820,8 +880,9 @@ func (c *templateCodegenCtx) generateElementDirectiveProp(dir *vue_ast.Directive
 			isCompound := c.isCompoundExpression(dir.Expression.Ast)
 			if isCompound {
 				// Compound expression: wrap in arrow function with $event in scope
-				// e.g., "count++; foo = bar" -> "(...[$event]) => { count++; foo = bar }"
-				c.serviceText.WriteString("(...[$event]) => {\n")
+				// e.g., "count++; foo = bar" -> "(...[$event]: [any]) => { count++; foo = bar }"
+				// Using [any] type to avoid implicit any errors
+				c.serviceText.WriteString("(...[$event]: [any]) => {\n")
 				c.enterScope()
 				c.declareScopeVar("$event")
 				c.mapExpressionInNonBindingPosition(dir.Expression)
