@@ -13,13 +13,20 @@ import (
 )
 
 const GlobalTypesPath = utils.GolarVirtualScheme + "vue-global-types.d.ts"
-const globalTypesReference = `/// <reference types="` + GlobalTypesPath + `" />\n`
+const globalTypesReference = "/// <reference types=\"" + GlobalTypesPath + "\" />\n"
 
 // Iterable requires es2015.iterable
 const GlobalTypes = `/// <reference lib="es2015" />
 export {}
 
 declare global {
+	type __VLS_PickNotAny<A, B> = 0 extends 1 & A ? B : A
+
+	// Unwrap Ref/ComputedRef types for template auto-unwrapping
+	// Refs have a .value property with UnwrapRef brand
+	// This checks if T has a 'value' property and extracts its type
+	type __VLS_UnwrapRef<T> = T extends { readonly value: infer V } ? V : T
+
 	function __VLS_vFor<T>(source: T): T extends number
 		? [number, number]
 		: T extends string
@@ -29,6 +36,8 @@ declare global {
 				: T extends Iterable<infer V>
 					? [V, number]
 					: [T[keyof T], ` + "`${keyof T}`" + `, number]
+
+	function __VLS_vSlot<S, D extends S>(slot: S, decl?: D): D extends (...args: infer P) => any ? P : any[]
 }
 `
 

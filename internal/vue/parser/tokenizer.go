@@ -814,9 +814,10 @@ func (t *Tokenizer) handleInAttrValue(c rune, quote rune) {
 			t.index+1,
 		)
 		t.state = StateBeforeAttrName
-	} else if c == CharCodeAmp {
-		t.startEntity()
 	}
+	// NOTE: Entity handling (CharCodeAmp '&') is disabled for Vue attribute values
+	// because Vue templates commonly use JavaScript operators like && which are not HTML entities.
+	// The entity decoder is also not fully implemented (see stateInEntity TODO).
 }
 func (t *Tokenizer) stateInAttrValueDoubleQuotes(c rune) {
 	t.handleInAttrValue(c, CharCodeDoubleQuote)

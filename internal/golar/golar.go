@@ -72,6 +72,25 @@ func (d *diagnosticProxy) sourceLoc() core.TextRange {
 				d.hasSource = true
 				return d.cachedSourceLoc
 			}
+			// No mapping found - clamp to valid source text bounds to prevent panic
+			// when diagnostic writer tries to compute line/character position
+			sourceLen := len(langData.sourceText)
+			pos := d.Diagnostic.Pos()
+			end := d.Diagnostic.End()
+			if pos >= sourceLen {
+				pos = sourceLen - 1
+				if pos < 0 {
+					pos = 0
+				}
+			}
+			if end > sourceLen {
+				end = sourceLen
+			}
+			if end < pos {
+				end = pos
+			}
+			d.cachedSourceLoc = core.NewTextRange(pos, end)
+			return d.cachedSourceLoc
 		}
 		d.cachedSourceLoc = d.Diagnostic.Loc()
 	}

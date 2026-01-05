@@ -261,14 +261,29 @@ func (p *Parser) ondirarg(start int, end int) {
 		prop.Name += arg
 		prop.Loc = prop.Loc.WithEnd(end)
 	} else {
-		// TODO:
-		// isStatic := arg[0] != '['
-		// ;(currentProp as DirectiveNode).arg = createExp(
-		// 	isStatic ? arg : arg.slice(1, -1),
-		// 	isStatic,
-		// 	getLoc(start, end),
-		// 	isStatic ? ConstantTypes.CAN_STRINGIFY : ConstantTypes.NOT_CONSTANT,
-		// )
+		prop := p.currentProp.AsDirective()
+		isStatic := arg[0] != '['
+		var argContent string
+		if isStatic {
+			argContent = arg
+		} else {
+			// Dynamic argument: [eventName] -> eventName
+			argContent = arg[1 : len(arg)-1]
+		}
+		prop.Arg = vue_ast.NewSimpleExpressionNode(
+			nil, // Static args don't need AST parsing
+			core.NewTextRange(start, end),
+			0, 0,
+		)
+		prop.ArgIsStatic = isStatic
+		// For dynamic args, we need to parse the expression
+		if !isStatic {
+			prop.Arg = vue_ast.NewSimpleExpressionNode(
+				ParseTsAst("("+argContent+")"),
+				core.NewTextRange(start+1, end-1), // Exclude brackets
+				1, 1,
+			)
+		}
 	}
 }
 
@@ -401,9 +416,18 @@ func (p *Parser) onattribend(quote QuoteType, end int) {
 					var expressionText string
 					switch prop.Name {
 					case "slot":
-						panic("TODO: v-slot")
+						// v-slot expression is the slot props binding, e.g., "{ item }" in #default="{ item }"
+						// We parse it as arrow function parameters: ({ item }) => {}
+						prefixLen = 1
+						suffixLen = len(") => {}")
+						expressionText = "(" + p.currentAttrValue + ") => {}"
 					case "on":
-						panic("TODO: v-on")
+						// For v-on, we parse the expression to determine if it's compound or simple
+						// Compound: inline statement like "count++" -> wrap in arrow function
+						// Simple: function reference like "handleClick" -> use directly
+						prefixLen = 1
+						suffixLen = 1
+						expressionText = "(" + p.currentAttrValue + ")"
 					default:
 						prefixLen = 1
 						suffixLen = 1
@@ -646,7 +670,12 @@ func (p *Parser) onCloseTag(el *vue_ast.ElementNode, end int, isImplied bool) {
 		el.Loc = el.Loc.WithEnd(p.lookAhead(end, CharCodeGt) + 1)
 	}
 
-	if p.tokenizer.inSFCRoot() {
+	// Check if this is an SFC root element (script, template, style)
+	// When onCloseTag is called, the element has already been removed from the stack,
+	// so for root SFC elements the stack should be empty (len == 0)
+	isSFCRootElement := p.tokenizer.mode == ParseModeSfc && len(p.stack) == 0 &&
+		(el.Tag == "script" || el.Tag == "template" || el.Tag == "style")
+	if isSFCRootElement {
 		if len(el.Children) > 0 {
 			el.InnerLoc = el.InnerLoc.WithEnd(el.Children[len(el.Children)-1].Loc.End())
 			if el.Tag == "script" {
