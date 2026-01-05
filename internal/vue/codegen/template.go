@@ -1,18 +1,114 @@
 package vue_codegen
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/auvred/golar/internal/collections"
-	"github.com/auvred/golar/internal/vue/ast"
-	"github.com/auvred/golar/internal/vue/diagnostics"
+	vue_ast "github.com/auvred/golar/internal/vue/ast"
+	vue_diagnostics "github.com/auvred/golar/internal/vue/diagnostics"
 	"github.com/microsoft/typescript-go/shim/ast"
 )
 
 type templateCodegenCtx struct {
 	*codegenCtx
-	scopes []collections.Set[string]
+	scopes      []collections.Set[string]
+	internalVar int // Counter for unique internal variable names
+}
+
+// HTML element tag names - anything NOT in this set is a component
+var htmlElements = collections.NewSetFromItems(
+	"a", "abbr", "address", "area", "article", "aside", "audio",
+	"b", "base", "bdi", "bdo", "blockquote", "body", "br", "button",
+	"canvas", "caption", "cite", "code", "col", "colgroup",
+	"data", "datalist", "dd", "del", "details", "dfn", "dialog", "div", "dl", "dt",
+	"em", "embed",
+	"fieldset", "figcaption", "figure", "footer", "form",
+	"h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html",
+	"i", "iframe", "img", "input", "ins",
+	"kbd",
+	"label", "legend", "li", "link",
+	"main", "map", "mark", "menu", "meta", "meter",
+	"nav", "noscript",
+	"object", "ol", "optgroup", "option", "output",
+	"p", "picture", "pre", "progress",
+	"q",
+	"rp", "rt", "ruby",
+	"s", "samp", "script", "search", "section", "select", "slot", "small", "source", "span", "strong", "style", "sub", "summary", "sup",
+	"table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "title", "tr", "track",
+	"u", "ul",
+	"var", "video",
+	"wbr",
+	// SVG elements
+	"svg", "path", "circle", "ellipse", "line", "polygon", "polyline", "rect", "g", "defs", "use", "symbol", "text", "tspan",
+)
+
+// isComponent returns true if the tag represents a Vue component rather than an HTML element
+func isComponent(tag string) bool {
+	// HTML elements are not components
+	if htmlElements.Has(strings.ToLower(tag)) {
+		return false
+	}
+	// PascalCase tags are components (e.g., MyComponent)
+	if len(tag) > 0 && tag[0] >= 'A' && tag[0] <= 'Z' {
+		return true
+	}
+	// Tags with hyphens that aren't HTML elements are components (e.g., my-component)
+	if strings.Contains(tag, "-") {
+		return true
+	}
+	return false
+}
+
+// getInternalVar generates a unique internal variable name like __VLS_0, __VLS_1, etc.
+func (c *templateCodegenCtx) getInternalVar() string {
+	name := fmt.Sprintf("__VLS_%d", c.internalVar)
+	c.internalVar++
+	return name
+}
+
+// capitalize returns the string with the first character capitalized
+func capitalize(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// camelize converts kebab-case to camelCase
+// e.g., "my-component" -> "myComponent"
+func camelize(s string) string {
+	result := strings.Builder{}
+	capitalizeNext := false
+	for _, ch := range s {
+		if ch == '-' {
+			capitalizeNext = true
+		} else if capitalizeNext {
+			result.WriteRune(rune(strings.ToUpper(string(ch))[0]))
+			capitalizeNext = false
+		} else {
+			result.WriteRune(ch)
+		}
+	}
+	return result.String()
+}
+
+// findMatchingSetupConst checks if a component tag matches a setup const
+// Returns the matching name if found, or empty string if not found.
+// Checks: CapitalizedCamelCase, camelCase, original tag
+func (c *templateCodegenCtx) findMatchingSetupConst(tag string) string {
+	candidates := []string{
+		capitalize(camelize(tag)), // MyComponent
+		camelize(tag),             // myComponent
+		tag,                       // my-component
+	}
+	for _, name := range candidates {
+		if c.setupConsts[name] {
+			return name
+		}
+	}
+	return ""
 }
 
 func newTemplateCodegenCtx(base *codegenCtx) templateCodegenCtx {
@@ -710,21 +806,32 @@ func (c *templateCodegenCtx) writeIntrinsicAccess(tag string) {
 	}
 }
 
-// generateElementCall generates a __VLS_asFunctionalElement1 call for intrinsic HTML elements.
-// This provides type checking for element props and enables proper TypeScript type inference.
-// Based on Volar's element.ts generateElement function.
+// generateElementCall generates type checking code for elements.
+// For intrinsic HTML elements: uses __VLS_asFunctionalElement1
+// For components: uses __VLS_asFunctionalComponent1 with proper emit type inference
+// Based on Volar's element.ts generateElement and generateComponent functions.
 func (c *templateCodegenCtx) generateElementCall(elem *vue_ast.ElementNode) {
 	tag := elem.Tag
 
+	if isComponent(tag) {
+		c.generateComponentCall(elem)
+	} else {
+		c.generateIntrinsicElementCall(elem)
+	}
+}
+
+// generateIntrinsicElementCall generates code for intrinsic HTML elements.
+func (c *templateCodegenCtx) generateIntrinsicElementCall(elem *vue_ast.ElementNode) {
+	tag := elem.Tag
+
 	// Generate: __VLS_asFunctionalElement1(__VLS_intrinsics.TAG, __VLS_intrinsics.TAG)({...props...});
-	// For tags with hyphens (like "f-switch"), use bracket notation: __VLS_intrinsics["f-switch"]
 	c.serviceText.WriteString("__VLS_asFunctionalElement1(")
 	c.writeIntrinsicAccess(tag)
 	c.serviceText.WriteString(", ")
 	c.writeIntrinsicAccess(tag)
 	c.serviceText.WriteString(")({\n")
 
-	// Generate props
+	// Generate props (including events inline)
 	for _, p := range elem.Props {
 		if p.Kind == vue_ast.KindAttribute {
 			attr := p.AsAttribute()
@@ -736,6 +843,149 @@ func (c *templateCodegenCtx) generateElementCall(elem *vue_ast.ElementNode) {
 	}
 
 	c.serviceText.WriteString("});\n")
+}
+
+// generateComponentCall generates type checking code for Vue components.
+// Following Volar's approach:
+// For imported components (found in setupConsts):
+//
+//	const __VLS_X = ComponentName || ComponentName;
+//
+// For global components:
+//
+//	let __VLS_X!: __VLS_WithComponent<...>
+//
+// Then for both:
+// 1. const __VLS_fn = __VLS_asFunctionalComponent1(__VLS_X, new __VLS_X({...}))
+// 2. const __VLS_vnode = __VLS_fn({...}, ...__VLS_functionalComponentArgsRest(__VLS_fn))
+// 3. Standalone expressions for event handlers (proper emit type inference requires defineEmits handling)
+//
+// TODO: Implement proper emit type inference using __VLS_NormalizeComponentEvent once
+// defineEmits handling is added to script codegen.
+func (c *templateCodegenCtx) generateComponentCall(elem *vue_ast.ElementNode) {
+	tag := elem.Tag
+
+	// Generate variable names upfront
+	componentVar := c.getInternalVar()
+	functionalVar := c.getInternalVar()
+	vnodeVar := c.getInternalVar()
+	// These are reserved for future emit type inference but not currently used
+	_ = c.getInternalVar() // ctxVar
+	_ = c.getInternalVar() // propsVar
+
+	// Collect event directives
+	var eventDirectives []*vue_ast.DirectiveNode
+	for _, p := range elem.Props {
+		if p.Kind == vue_ast.KindDirective {
+			dir := p.AsDirective()
+			if dir.Name == "on" && dir.Arg != nil && dir.ArgIsStatic && dir.Expression != nil {
+				eventDirectives = append(eventDirectives, dir)
+			}
+		}
+	}
+
+	// 1. Resolve component type
+	// Check if component is imported (found in setupConsts)
+	matchedSetupConst := c.findMatchingSetupConst(tag)
+	if matchedSetupConst != "" {
+		// Imported component: use direct reference
+		// const __VLS_0 = ComponentName || ComponentName;
+		c.serviceText.WriteString("const ")
+		c.serviceText.WriteString(componentVar)
+		c.serviceText.WriteString(" = ")
+		c.serviceText.WriteString(matchedSetupConst)
+		c.serviceText.WriteString(" || ")
+		c.serviceText.WriteString(matchedSetupConst)
+		c.serviceText.WriteString("\n")
+	} else {
+		// Global component: use __VLS_WithComponent lookup
+		c.serviceText.WriteString("let ")
+		c.serviceText.WriteString(componentVar)
+		c.serviceText.WriteString("!: __VLS_WithComponent<'")
+		c.serviceText.WriteString(tag)
+		c.serviceText.WriteString("', __VLS_LocalComponents, __VLS_GlobalComponents, void, '")
+		c.serviceText.WriteString(tag)
+		c.serviceText.WriteString("'>['")
+		c.serviceText.WriteString(tag)
+		c.serviceText.WriteString("']\n")
+	}
+
+	// 2. Create functional component wrapper
+	c.serviceText.WriteString("// @ts-ignore\n")
+	c.serviceText.WriteString("const ")
+	c.serviceText.WriteString(functionalVar)
+	c.serviceText.WriteString(" = __VLS_asFunctionalComponent1(")
+	c.serviceText.WriteString(componentVar)
+	c.serviceText.WriteString(", new ")
+	c.serviceText.WriteString(componentVar)
+	c.serviceText.WriteString("({\n")
+
+	// Generate props (including event placeholders for type checking)
+	for _, p := range elem.Props {
+		if p.Kind == vue_ast.KindAttribute {
+			c.generateElementAttribute(p.AsAttribute())
+		} else if p.Kind == vue_ast.KindDirective {
+			dir := p.AsDirective()
+			if dir.Name == "on" && dir.Arg != nil && dir.ArgIsStatic {
+				// Add event prop placeholder for type checking
+				eventName := c.sourceText[dir.Arg.Loc.Pos():dir.Arg.Loc.End()]
+				propName := toCamelCase("on-" + eventName)
+				c.serviceText.WriteString("...{ ")
+				c.writePropertyName(propName)
+				c.serviceText.WriteString(": {} as any },\n")
+			} else if dir.Name != "on" {
+				c.generateElementDirectiveProp(dir)
+			}
+		}
+	}
+	c.serviceText.WriteString("}))\n")
+
+	// 3. Call the functional component
+	c.serviceText.WriteString("const ")
+	c.serviceText.WriteString(vnodeVar)
+	c.serviceText.WriteString(" = ")
+	c.serviceText.WriteString(functionalVar)
+	c.serviceText.WriteString("({\n")
+
+	for _, p := range elem.Props {
+		if p.Kind == vue_ast.KindAttribute {
+			c.generateElementAttribute(p.AsAttribute())
+		} else if p.Kind == vue_ast.KindDirective {
+			dir := p.AsDirective()
+			if dir.Name == "on" && dir.Arg != nil && dir.ArgIsStatic {
+				// Add event prop placeholder
+				eventName := c.sourceText[dir.Arg.Loc.Pos():dir.Arg.Loc.End()]
+				propName := toCamelCase("on-" + eventName)
+				c.serviceText.WriteString("...{ ")
+				c.writePropertyName(propName)
+				c.serviceText.WriteString(": {} as any },\n")
+			} else if dir.Name != "on" {
+				c.generateElementDirectiveProp(dir)
+			}
+		}
+	}
+	c.serviceText.WriteString("}, ...__VLS_functionalComponentArgsRest(")
+	c.serviceText.WriteString(functionalVar)
+	c.serviceText.WriteString("))\n")
+
+	// 4. Generate event handlers
+	// For now, just generate standalone expressions for event handlers
+	// Full emit type inference requires proper defineEmits handling which is not yet implemented
+	for _, dir := range eventDirectives {
+		isCompound := c.isCompoundExpression(dir.Expression.Ast)
+		if isCompound {
+			c.serviceText.WriteString(";((...[$event]: [any]) => {\n")
+			c.enterScope()
+			c.declareScopeVar("$event")
+			c.mapExpressionInNonBindingPosition(dir.Expression)
+			c.exitScope()
+			c.serviceText.WriteString("\n})\n")
+		} else {
+			c.serviceText.WriteString(";(")
+			c.mapExpressionInNonBindingPosition(dir.Expression)
+			c.serviceText.WriteString(")\n")
+		}
+	}
 }
 
 // toCamelCase converts a kebab-case string to camelCase

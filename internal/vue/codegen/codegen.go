@@ -101,11 +101,20 @@ RootChild:
 		}
 		ctx.serviceText.Write([]byte(c.serviceText.String()))
 		ctx.diagnostics = append(ctx.diagnostics, c.diagnostics...)
+		// Copy setupConsts to the outer context for template codegen
+		for k, v := range c.setupConsts {
+			ctx.setupConsts[k] = v
+		}
 	}
 
 	// Only generate template separately if we don't have both script blocks
 	if !hasBothScripts {
 		c := newCodegenCtx(root, sourceText)
+		// Copy setupConsts from the script context (collected during generateScript)
+		// This is needed for template codegen to know which component names are local imports
+		for k, v := range ctx.setupConsts {
+			c.setupConsts[k] = v
+		}
 		generateTemplate(&c, templateEl)
 		newMappingsStart := len(ctx.mappings)
 		ctx.mappings = append(ctx.mappings, c.mappings...)
@@ -125,6 +134,9 @@ type codegenCtx struct {
 	serviceText strings.Builder
 	mappings    []mapping.Mapping
 	diagnostics []*ast.Diagnostic
+	// setupConsts contains identifiers defined in <script setup> (imports, variables, functions)
+	// Used to determine if a component tag matches a local binding vs a global component
+	setupConsts map[string]bool
 }
 
 func newCodegenCtx(root *vue_ast.RootNode, sourceText string) codegenCtx {
@@ -134,6 +146,7 @@ func newCodegenCtx(root *vue_ast.RootNode, sourceText string) codegenCtx {
 		serviceText: strings.Builder{},
 		mappings:    []mapping.Mapping{},
 		diagnostics: []*ast.Diagnostic{},
+		setupConsts: make(map[string]bool),
 	}
 }
 

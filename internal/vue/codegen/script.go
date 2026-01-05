@@ -278,6 +278,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		// Collect type declarations to hoist and other statement ranges
 		typeRanges := []core.TextRange{}
 		bindingRanges := []core.TextRange{}
+		bindingNames := []string{} // Store actual identifier names for setupConsts
 		importRanges := []core.TextRange{}
 
 		for _, statement := range c.scriptSetupEl.Ast.Statements.Nodes {
@@ -292,6 +293,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 					visitor = func(n *ast.Node) bool {
 						if ast.IsIdentifier(n) {
 							bindingRanges = append(bindingRanges, n.Loc)
+							bindingNames = append(bindingNames, n.AsIdentifier().Text)
 						}
 						return n.ForEachChild(visitor)
 					}
@@ -300,6 +302,9 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 			case ast.KindFunctionDeclaration, ast.KindClassDeclaration, ast.KindEnumDeclaration:
 				if name := statement.Name(); name != nil {
 					bindingRanges = append(bindingRanges, name.Loc)
+					if ast.IsIdentifier(name) {
+						bindingNames = append(bindingNames, name.AsIdentifier().Text)
+					}
 				}
 			case ast.KindImportDeclaration:
 				// Skip type-only imports entirely (import type { ... })
@@ -311,12 +316,18 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 					// Default import (import Foo from ...)
 					if importClause.Name() != nil {
 						bindingRanges = append(bindingRanges, importClause.Name().Loc)
+						if ast.IsIdentifier(importClause.Name()) {
+							bindingNames = append(bindingNames, importClause.Name().AsIdentifier().Text)
+						}
 					}
 
 					namedBindings := importClause.AsImportClause().NamedBindings
 					if namedBindings != nil {
 						if ast.IsNamespaceImport(namedBindings) {
 							bindingRanges = append(bindingRanges, namedBindings.Name().Loc)
+							if ast.IsIdentifier(namedBindings.Name()) {
+								bindingNames = append(bindingNames, namedBindings.Name().AsIdentifier().Text)
+							}
 						} else {
 							// Named imports (import { Foo, Bar } from ...)
 							for _, element := range namedBindings.Elements() {
@@ -325,11 +336,19 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 									continue
 								}
 								bindingRanges = append(bindingRanges, element.Name().Loc)
+								if ast.IsIdentifier(element.Name()) {
+									bindingNames = append(bindingNames, element.Name().AsIdentifier().Text)
+								}
 							}
 						}
 					}
 				}
 			}
+		}
+
+		// Populate setupConsts with binding names for template codegen
+		for _, name := range bindingNames {
+			c.setupConsts[name] = true
 		}
 
 		// Hoist type declarations first (emit without mappings to avoid position conflicts)
