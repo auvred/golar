@@ -570,6 +570,22 @@ func (c *templateCodegenCtx) generateSlot(dir *vue_ast.DirectiveNode, elem *vue_
 	c.serviceText.WriteString("}\n")
 }
 
+// writeIntrinsicAccess writes access to __VLS_intrinsics for a tag name.
+// Uses dot notation for valid identifiers, bracket notation for tags with hyphens.
+// e.g., "div" -> __VLS_intrinsics.div
+// e.g., "f-switch" -> __VLS_intrinsics["f-switch"]
+func (c *templateCodegenCtx) writeIntrinsicAccess(tag string) {
+	c.serviceText.WriteString("__VLS_intrinsics")
+	if needsQuotes(tag) {
+		c.serviceText.WriteString("[\"")
+		c.serviceText.WriteString(tag)
+		c.serviceText.WriteString("\"]")
+	} else {
+		c.serviceText.WriteString(".")
+		c.serviceText.WriteString(tag)
+	}
+}
+
 // generateElementCall generates a __VLS_asFunctionalElement1 call for intrinsic HTML elements.
 // This provides type checking for element props and enables proper TypeScript type inference.
 // Based on Volar's element.ts generateElement function.
@@ -577,10 +593,11 @@ func (c *templateCodegenCtx) generateElementCall(elem *vue_ast.ElementNode) {
 	tag := elem.Tag
 
 	// Generate: __VLS_asFunctionalElement1(__VLS_intrinsics.TAG, __VLS_intrinsics.TAG)({...props...});
-	c.serviceText.WriteString("__VLS_asFunctionalElement1(__VLS_intrinsics.")
-	c.serviceText.WriteString(tag)
-	c.serviceText.WriteString(", __VLS_intrinsics.")
-	c.serviceText.WriteString(tag)
+	// For tags with hyphens (like "f-switch"), use bracket notation: __VLS_intrinsics["f-switch"]
+	c.serviceText.WriteString("__VLS_asFunctionalElement1(")
+	c.writeIntrinsicAccess(tag)
+	c.serviceText.WriteString(", ")
+	c.writeIntrinsicAccess(tag)
 	c.serviceText.WriteString(")({\n")
 
 	// Generate props
