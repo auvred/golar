@@ -7,6 +7,9 @@ This document contains the roadmap and detailed tasks for Golar development. Tas
 Golar can now parse Vue SFCs and generate TypeScript service code for type checking. Basic directives (`v-if`, `v-for`, `v-on`) are supported. Element type checking with `__VLS_asFunctionalElement1` is now implemented. Component resolution distinguishes between imported and global components. All execution modes (regular `-p`, incremental, build `-b`, LSP) now properly handle `.vue` files.
 
 ### Recent Fixes (Feb 2025)
+- **Implemented dynamic component support**: `<component :is="expr">` now works with both simple expressions and ternary conditionals (e.g., `Math.random() > 0.5 ? Foo : Bar`)
+- **Optimized export pattern**: Removed unnecessary `__VLS_base` intermediate when components have no slots, matching Volar's output
+- **Added Makefile**: Build automation with `make build-binary`, `make build-extension`, `make install-extension`, `make test`, `make clean`
 - **Fixed build mode (`-b`) panics**: Build mode's orchestrator now wraps compiler host with Golar callbacks, preventing `ScriptKindUnknown` panics for `.vue` files
 - **Fixed empty `<script setup>` panic**: Components with `<script setup lang="ts"></script>` (no content) no longer crash the codegen
 - **Fixed template-only component codegen**: Components with no `<script>` tag now properly generate `__VLS_SetupExposed` type for template component resolution
@@ -133,6 +136,7 @@ This difference is intentional - the leading semicolon prevents ASI issues when 
 - Imported components use direct reference for type inference
 - Global components use `__VLS_WithComponent` lookup
 - Props are passed through `__VLS_asFunctionalComponent1` for type checking
+- Dynamic components (`<component :is="expr">`) work with expression-based component resolution
 
 **What's still needed**:
 1. Emit type inference (requires `defineEmits` support)
@@ -172,9 +176,16 @@ Full emit type inference using `__VLS_NormalizeComponentEvent` is currently disa
 
 **To fix**: Implement `defineEmits` capture in script codegen (see High Priority section).
 
-### Dynamic Components Not Supported
+### ~~Dynamic Components Not Supported~~ - COMPLETED
 
-`<component :is="SomeComponent">` is not yet handled. The parser treats `component` as a regular element.
+~~`<component :is="SomeComponent">` is not yet handled. The parser treats `component` as a regular element.~~
+
+**Status**: Implemented (Feb 2025)
+- `<component :is="expr">` fully supported
+- Works with simple expressions: `<component :is="Foo">`
+- Works with ternary expressions: `<component :is="Math.random() > 0.5 ? Foo : Bar">`
+- Properly filters `:is` prop from generated component props
+- Generates correct `const __VLS_N = (expression);` pattern matching Volar
 
 ### Pug Templates Not Supported
 
@@ -233,11 +244,18 @@ Create snapshot/baseline tests similar to TypeScript's test infrastructure:
 ## Commands Reference
 
 ```bash
-# Build Golar
+# Build Golar (using Makefile)
+make build-binary           # Build golar/tsgo binary
+make build-extension        # Build VS Code extension (.vsix)
+make install-extension      # Install extension in VS Code
+make test                   # Run all tests
+make clean                  # Clean build artifacts
+
+# Or manually:
 go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
 
 # Run Vue tests
-go test ./internal/vue/tests/... -v
+go test ./internal/vue/tests/... -v -count=1
 
 # Run Volar comparison (requires setup first)
 ./scripts/setup-volar-reference.sh

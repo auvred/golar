@@ -44,6 +44,7 @@ Golar is under active development. Below is the current status of Vue SFC featur
 | Diagnostic mapping | Supported | Errors map back to source `.vue` positions |
 | Imported component resolution | Supported | Direct type reference for components imported in `<script setup>` |
 | Global component resolution | Supported | `__VLS_WithComponent` lookup for globally registered components |
+| Dynamic components | Supported | `<component :is="expr">` with expression or ternary support |
 
 ### Partially Supported
 
@@ -65,7 +66,6 @@ Golar is under active development. Below is the current status of Vue SFC featur
 | Component emit type inference | Not yet | Requires `defineEmits` support first |
 | Generic components | Not yet | `<script setup generic="T">` |
 | CSS `v-bind()` | Not yet | |
-| Dynamic components | Not yet | `<component :is="...">` |
 | Pug templates | Not yet | `<template lang="pug">` |
 
 ### Known Limitations
@@ -88,11 +88,14 @@ Golar is under active development. Below is the current status of Vue SFC featur
 ### VS Code Extension (recommended)
 
 ```bash
-# Build everything and produce a .vsix
-./scripts/build-extension.sh
+# Build everything and produce a .vsix (using Makefile)
+make build-extension
 
 # Install the extension
-code --install-extension editors/vscode/golar-*.vsix
+make install-extension
+
+# Or manually:
+code --install-extension editors/vscode/golar-*.vsix --force
 ```
 
 Then disable **Vue - Official (Volar)** and **TypeScript Language Features** to avoid conflicts.
@@ -102,7 +105,10 @@ See [editors/vscode/README.md](./editors/vscode/README.md) for detailed setup.
 ### CLI Type Checking
 
 ```bash
-# Build the golar binary
+# Build the golar binary (using Makefile)
+make build-binary
+
+# Or manually:
 go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
 
 # Type-check a Vue project
@@ -125,8 +131,11 @@ go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
 ## Testing
 
 ```bash
-# Run all Vue tests
-go test ./internal/vue/tests/...
+# Run all Vue tests (using Makefile)
+make test
+
+# Or manually:
+go test ./internal/vue/tests/... -v -count=1
 
 # Run Volar comparison tests (requires .reference/language-tools setup)
 go test ./internal/vue/tests/volar_comparison/... -v

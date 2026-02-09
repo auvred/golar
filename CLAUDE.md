@@ -60,10 +60,17 @@ cd ..
 ### Building
 
 ```bash
-# Build the golar binary (tsgo with Golar extensions)
+# Using Makefile (recommended)
+make build-binary           # Build golar/tsgo binary
+make build-extension        # Build VS Code extension (.vsix)
+make install-extension      # Install extension in VS Code
+make test                   # Run all tests
+make clean                  # Clean build artifacts
+
+# Or manually:
 go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
 
-# Build the VS Code extension (binary + JS bundle + .vsix)
+# Build VS Code extension manually:
 ./scripts/build-extension.sh
 
 # Or build components individually:
@@ -282,13 +289,27 @@ Event handlers require special handling based on expression type:
     
     Track setup consts (imports, variables, functions from script setup) and check if the component tag matches. Use `camelize()` and `capitalize()` to match different naming conventions (e.g., `my-component` → `MyComponent`).
 
-14. **Component emit type inference requires defineEmits** - The `__VLS_NormalizeComponentEvent` type has constraints like `Event extends keyof Emits`. If a component doesn't declare emits via `defineEmits`, the emit type is `{}`, making `keyof Emits` equal to `never`, which causes TS2344 constraint errors. Full emit type inference requires capturing `defineEmits` return value and threading it through the generated code.
+14. **Dynamic components `<component :is="expr">`** - The `<component>` tag with `:is` directive requires special handling:
+    - Search props for `v-bind` directive with arg `"is"`
+    - Extract the expression and use it as the component type
+    - Filter out the `:is` prop from the generated prop list (use `generateElementPropsFiltered()` to skip the directive)
+    - Generate: `const __VLS_N = (expression);` then continue with standard component codegen
+    - Expression identifiers follow normal prefixing rules (JS globals unprefixed, setup vars prefixed with `__VLS_ctx.`)
+    - Works with simple expressions (`Foo`) and complex expressions (`Math.random() > 0.5 ? Foo : Bar`)
+
+15. **Component emit type inference requires defineEmits** - The `__VLS_NormalizeComponentEvent` type has constraints like `Event extends keyof Emits`. If a component doesn't declare emits via `defineEmits`, the emit type is `{}`, making `keyof Emits` equal to `never`, which causes TS2344 constraint errors. Full emit type inference requires capturing `defineEmits` return value and threading it through the generated code.
 
 15. **Build mode (`-b`) requires Golar host wrapping** - typescript-go has multiple execution modes (regular `-p`, incremental, build `-b`, watch `-w`, LSP). Each creates its own `compiler.CompilerHost`. The build mode in `internal/execute/build/orchestrator.go` creates a host via `compiler.NewCachedFSCompilerHost()` which must be wrapped with `sys.GetGolarCallbacks().WrapCompilerHost(host)` — otherwise `.vue` files hit `compiler/host.go:GetSourceFile()` which calls `core.GetScriptKindFromFileName()` returning `ScriptKindUnknown` and panics. Always verify new execution modes wrap the compiler host.
 
 16. **Empty `<script setup>` and template-only components** - Vue SFCs can have: (a) empty `<script setup lang="ts"></script>` with no content, or (b) no `<script>` tag at all (template-only). The parser produces 0 children and nil `Ast` for empty script blocks. Codegen must handle these cases: skip text mapping and statement iteration when children is empty, and always generate `__VLS_SetupExposed` type (even as empty `{}` for template-only components) since template codegen references it for component resolution.
 
 17. **Extension registration must be unconditional** - `tspath.RegisterSupportedExtension(".vue")` must be called in an unconditional `init()` function in `internal/golar/golar.go`. Without this, the file loader in `filesparser.go` rejects `.vue` files because they're not in `supportedExtensions`. The second `init()` that checks `GOLAR_PLUGIN` env is for the plugin system and is separate.
+
+18. **Export pattern optimization** - Components without slots should not use the `__VLS_base` intermediate:
+    - **Without slots**: `const __VLS_export = (await import('vue')).defineComponent({...});`
+    - **With slots**: `const __VLS_base = (await import('vue')).defineComponent({...}); const __VLS_export = {} as __VLS_WithSlots<typeof __VLS_base, __VLS_Slots>;`
+    - Check both `slotsVariableName` (from `defineSlots`) and `c.templateHasSlots` (from `<slot>` elements in template)
+    - The condition should be: `if !hasDefineComponentOptions && !hasSlots` for simple case, `else if hasSlots` for slots case, `else` for no-slots-with-options case
 
 ## Volar Comparison Testing
 
