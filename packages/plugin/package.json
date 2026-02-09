@@ -1,0 +1,6 @@
+{
+	"name": "@golar/plugin",
+	"private": true,
+	"type": "module",
+	"exports": "./src/index.ts"
+}

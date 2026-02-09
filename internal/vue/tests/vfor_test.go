@@ -5,14 +5,10 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/fourslash"
 	"github.com/microsoft/typescript-go/shim/lsp/lsproto"
-	"github.com/microsoft/typescript-go/shim/testutil"
 )
 
 func TestVForStringSource(t *testing.T) {
-	t.Parallel()
-
-	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	runFourslashTest(t, `// @filename: file.vue
 <script setup lang="ts">
 	const str = 'hello'
 </script>
@@ -30,37 +26,33 @@ func TestVForStringSource(t *testing.T) {
 		{{ key/*12*/ }}
 		{{ idx/*13*/ }}
 	</div>
-</template>`)
-	f, done := fourslash.NewFourslash(t, nil, content)
-	defer done()
+</template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
 
-	f.VerifyQuickInfoAt(t, "1", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "2", `(property) str: "hello"`, "")
-	f.VerifyQuickInfoAt(t, "3", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "4", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "5", "const idx: number", "")
-	f.VerifyQuickInfoAt(t, "6", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "7", "const idx: number", "")
-	f.VerifyQuickInfoAt(t, "8", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "9", "const key: number", "")
-	f.VerifyQuickInfoAt(t, "10", "const idx: undefined", "")
-	f.VerifyQuickInfoAt(t, "11", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "12", "const key: number", "")
-	f.VerifyQuickInfoAt(t, "13", "const idx: undefined", "")
+		f.VerifyQuickInfoAt(t, "1", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "2", `(property) str: "hello"`, "")
+		f.VerifyQuickInfoAt(t, "3", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "4", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "5", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "6", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "7", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "8", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "9", "const key: number", "")
+		f.VerifyQuickInfoAt(t, "10", "const idx: undefined", "")
+		f.VerifyQuickInfoAt(t, "11", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "12", "const key: number", "")
+		f.VerifyQuickInfoAt(t, "13", "const idx: undefined", "")
 
-	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-		{
-			Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2493)},
-			Message: "Tuple type '[string, number]' of length '2' has no element at index '2'.",
-		},
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2493)},
+				Message: "Tuple type '[string, number]' of length '2' has no element at index '2'.",
+			},
+		})
 	})
 }
 
 func TestVForNumberSource(t *testing.T) {
-	t.Parallel()
-
-	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	runFourslashTest(t, `// @filename: file.vue
 <script setup lang="ts">
 	const count = 5
 </script>
@@ -78,36 +70,32 @@ func TestVForNumberSource(t *testing.T) {
 		{{ key/*11*/ }}
 		{{ idx/*12*/ }}
 	</div>
-</template>`)
-	f, done := fourslash.NewFourslash(t, nil, content)
-	defer done()
+</template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
 
-	f.VerifyQuickInfoAt(t, "1", "const value: number", "")
-	f.VerifyQuickInfoAt(t, "2", "const value: number", "")
-	f.VerifyQuickInfoAt(t, "3", "const value: number", "")
-	f.VerifyQuickInfoAt(t, "4", "const idx: number", "")
-	f.VerifyQuickInfoAt(t, "5", "const value: number", "")
-	f.VerifyQuickInfoAt(t, "6", "const idx: number", "")
-	f.VerifyQuickInfoAt(t, "7", "const value: number", "")
-	f.VerifyQuickInfoAt(t, "8", "const key: number", "")
-	f.VerifyQuickInfoAt(t, "9", "const idx: undefined", "")
-	f.VerifyQuickInfoAt(t, "10", "const value: number", "")
-	f.VerifyQuickInfoAt(t, "11", "const key: number", "")
-	f.VerifyQuickInfoAt(t, "12", "const idx: undefined", "")
+		f.VerifyQuickInfoAt(t, "1", "const value: number", "")
+		f.VerifyQuickInfoAt(t, "2", "const value: number", "")
+		f.VerifyQuickInfoAt(t, "3", "const value: number", "")
+		f.VerifyQuickInfoAt(t, "4", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "5", "const value: number", "")
+		f.VerifyQuickInfoAt(t, "6", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "7", "const value: number", "")
+		f.VerifyQuickInfoAt(t, "8", "const key: number", "")
+		f.VerifyQuickInfoAt(t, "9", "const idx: undefined", "")
+		f.VerifyQuickInfoAt(t, "10", "const value: number", "")
+		f.VerifyQuickInfoAt(t, "11", "const key: number", "")
+		f.VerifyQuickInfoAt(t, "12", "const idx: undefined", "")
 
-	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-		{
-			Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2493)},
-			Message: "Tuple type '[number, number]' of length '2' has no element at index '2'.",
-		},
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2493)},
+				Message: "Tuple type '[number, number]' of length '2' has no element at index '2'.",
+			},
+		})
 	})
 }
 
 func TestVForArraySource(t *testing.T) {
-	t.Parallel()
-
-	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	runFourslashTest(t, `// @filename: file.vue
 <script setup lang="ts">
 	const arr = ['a', 'b', 'c']
 </script>
@@ -125,36 +113,32 @@ func TestVForArraySource(t *testing.T) {
 		{{ key/*11*/ }}
 		{{ idx/*12*/ }}
 	</div>
-</template>`)
-	f, done := fourslash.NewFourslash(t, nil, content)
-	defer done()
+</template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
 
-	f.VerifyQuickInfoAt(t, "1", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "2", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "3", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "4", "const idx: number", "")
-	f.VerifyQuickInfoAt(t, "5", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "6", "const idx: number", "")
-	f.VerifyQuickInfoAt(t, "7", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "8", "const key: number", "")
-	f.VerifyQuickInfoAt(t, "9", "const idx: undefined", "")
-	f.VerifyQuickInfoAt(t, "10", "const value: string", "")
-	f.VerifyQuickInfoAt(t, "11", "const key: number", "")
-	f.VerifyQuickInfoAt(t, "12", "const idx: undefined", "")
+		f.VerifyQuickInfoAt(t, "1", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "2", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "3", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "4", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "5", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "6", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "7", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "8", "const key: number", "")
+		f.VerifyQuickInfoAt(t, "9", "const idx: undefined", "")
+		f.VerifyQuickInfoAt(t, "10", "const value: string", "")
+		f.VerifyQuickInfoAt(t, "11", "const key: number", "")
+		f.VerifyQuickInfoAt(t, "12", "const idx: undefined", "")
 
-	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-		{
-			Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2493)},
-			Message: "Tuple type '[string, number]' of length '2' has no element at index '2'.",
-		},
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2493)},
+				Message: "Tuple type '[string, number]' of length '2' has no element at index '2'.",
+			},
+		})
 	})
 }
 
 func TestVForObjectSource(t *testing.T) {
-	t.Parallel()
-
-	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	runFourslashTest(t, `// @filename: file.vue
 <script setup lang="ts">
 	const [|obj|] = { alpha: true }
 </script>
@@ -172,32 +156,27 @@ func TestVForObjectSource(t *testing.T) {
 		{{ key/*11*/ }}
 		{{ idx/*12*/ }}
 	</div>
-</template>`)
-	f, done := fourslash.NewFourslash(t, nil, content)
-	defer done()
+</template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
 
-	f.VerifyQuickInfoAt(t, "1", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "2", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "3", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "4", `const idx: "alpha"`, "")
-	f.VerifyQuickInfoAt(t, "5", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "6", `const idx: "alpha"`, "")
-	f.VerifyQuickInfoAt(t, "7", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "8", `const key: "alpha"`, "")
-	f.VerifyQuickInfoAt(t, "9", "const idx: number", "")
-	f.VerifyQuickInfoAt(t, "10", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "11", `const key: "alpha"`, "")
-	f.VerifyQuickInfoAt(t, "12", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "1", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "2", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "3", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "4", `const idx: "alpha"`, "")
+		f.VerifyQuickInfoAt(t, "5", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "6", `const idx: "alpha"`, "")
+		f.VerifyQuickInfoAt(t, "7", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "8", `const key: "alpha"`, "")
+		f.VerifyQuickInfoAt(t, "9", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "10", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "11", `const key: "alpha"`, "")
+		f.VerifyQuickInfoAt(t, "12", "const idx: number", "")
 
-	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
+	})
 }
 
 func TestVForIterableSource(t *testing.T) {
-	t.Parallel()
-
-	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
-// @lib: es2015.iterable
+	runFourslashTest(t, `// @filename: file.vue
 <script setup lang="ts">
 	const set = new Set([true, false])
 </script>
@@ -215,27 +194,26 @@ func TestVForIterableSource(t *testing.T) {
 		{{ key/*11*/ }}
 		{{ idx/*12*/ }}
 	</div>
-</template>`)
-	f, done := fourslash.NewFourslash(t, nil, content)
-	defer done()
+</template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
 
-	f.VerifyQuickInfoAt(t, "1", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "2", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "3", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "4", "const idx: number", "")
-	f.VerifyQuickInfoAt(t, "5", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "6", "const idx: number", "")
-	f.VerifyQuickInfoAt(t, "7", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "8", "const key: number", "")
-	f.VerifyQuickInfoAt(t, "9", "const idx: undefined", "")
-	f.VerifyQuickInfoAt(t, "10", "const value: boolean", "")
-	f.VerifyQuickInfoAt(t, "11", "const key: number", "")
-	f.VerifyQuickInfoAt(t, "12", "const idx: undefined", "")
+		f.VerifyQuickInfoAt(t, "1", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "2", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "3", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "4", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "5", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "6", "const idx: number", "")
+		f.VerifyQuickInfoAt(t, "7", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "8", "const key: number", "")
+		f.VerifyQuickInfoAt(t, "9", "const idx: undefined", "")
+		f.VerifyQuickInfoAt(t, "10", "const value: boolean", "")
+		f.VerifyQuickInfoAt(t, "11", "const key: number", "")
+		f.VerifyQuickInfoAt(t, "12", "const idx: undefined", "")
 
-	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-		{
-			Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2493)},
-			Message: "Tuple type '[boolean, number]' of length '2' has no element at index '2'.",
-		},
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2493)},
+				Message: "Tuple type '[boolean, number]' of length '2' has no element at index '2'.",
+			},
+		})
 	})
 }

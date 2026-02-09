@@ -1,0 +1,32 @@
+{
+	"exclude": ["./thirdparty"],
+  "compilerOptions": {
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "strict": true,
+
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolveJsonModule": true,
+    "types": ["node"],
+
+    "noEmit": true,
+
+    "verbatimModuleSyntax": true,
+		"erasableSyntaxOnly": true,
+
+    "lib": ["es2023"],
+    "moduleDetection": "force",
+    "target": "es2023",
+
+    "noErrorTruncation": true,
+		"rewriteRelativeImportExtensions": true,
+
+    "skipLibCheck": true
+  },
+
+}

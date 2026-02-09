@@ -12,7 +12,7 @@ func TestVOnSimpleHandler(t *testing.T) {
 	t.Parallel()
 
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	content := withVueNodeModules(t, vue_3_5, `// @filename: file.vue
 <script setup lang="ts">
 const handleClick = () => {}
 </script>
@@ -31,7 +31,7 @@ func TestVOnCompoundExpression(t *testing.T) {
 	t.Parallel()
 
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	content := withVueNodeModules(t, vue_3_5, `// @filename: file.vue
 <script setup lang="ts">
 let count/*1*/ = 0
 </script>
@@ -51,7 +51,7 @@ func TestVOnPropertyAccess(t *testing.T) {
 	t.Parallel()
 
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	content := withVueNodeModules(t, vue_3_5, `// @filename: file.vue
 <script setup lang="ts">
 const obj = {
 	method: () => {}
@@ -73,7 +73,7 @@ func TestVOnInlineArrowFunction(t *testing.T) {
 	t.Parallel()
 
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	content := withVueNodeModules(t, vue_3_5, `// @filename: file.vue
 <script setup lang="ts">
 let count = 0
 </script>
@@ -93,7 +93,7 @@ func TestVOnWithEventParameter(t *testing.T) {
 	t.Parallel()
 
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	content := withVueNodeModules(t, vue_3_5, `// @filename: file.vue
 <script setup lang="ts">
 const handleClick = (e: MouseEvent) => {
 	console.log(e.clientX)
@@ -115,7 +115,7 @@ func TestVOnLongForm(t *testing.T) {
 	t.Parallel()
 
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	content := withVueNodeModules(t, vue_3_5, `// @filename: file.vue
 <script setup lang="ts">
 const handleClick = () => {}
 </script>
@@ -134,7 +134,7 @@ func TestVOnTypeError(t *testing.T) {
 	t.Parallel()
 
 	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	content := withVueNodeModules(t, vue_3_5, `// @filename: file.vue
 <script setup lang="ts">
 const notAFunction: number = 42
 </script>

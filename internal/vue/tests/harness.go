@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/microsoft/typescript-go/shim/fourslash"
+	"github.com/microsoft/typescript-go/shim/testutil"
 	"gotest.tools/v3/assert"
 )
 
@@ -14,9 +16,19 @@ func ptrTo[T any](v T) *T {
 	return &v
 }
 
-func withVueNodeModules(t *testing.T, content string) string {
+type vueVersion string
+
+const (
+	vue_3_2 vueVersion = "vue-3.2"
+	vue_3_3 vueVersion = "vue-3.3"
+	vue_3_4 vueVersion = "vue-3.4"
+	vue_3_5 vueVersion = "vue-3.5"
+	vue_3_6 vueVersion = "vue-3.6"
+)
+
+func withVueNodeModules(t *testing.T, version vueVersion, content string) string {
 	_, filename, _, _ := runtime.Caller(1)
-	dirname := filepath.Dir(filename)
+	dirname := filepath.Join(filepath.Dir(filename), string(version))
 	var extraFilesBuilder strings.Builder
 	extraFilesBuilder.WriteString("// @golarExtraFiles: ")
 
@@ -44,4 +56,18 @@ func withVueNodeModules(t *testing.T, content string) string {
 	extraFilesBuilder.WriteByte('\n')
 
 	return extraFilesBuilder.String() + content
+}
+
+func runFourslashTest(t *testing.T, content string, run func(t *testing.T, f *fourslash.FourslashTest, version vueVersion)) {
+	t.Parallel()
+	for _, version := range []vueVersion{vue_3_2, vue_3_3, vue_3_4, vue_3_5, vue_3_6} {
+		t.Run(string(version), func(t *testing.T) {
+			defer testutil.RecoverAndFail(t, "Panic on fourslash test")
+
+			contentWithNodeModules := withVueNodeModules(t, version, content)
+			f, done := fourslash.NewFourslash(t, nil, contentWithNodeModules)
+			defer done()
+			run(t, f, version)
+		})
+	}
 }

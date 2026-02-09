@@ -3,26 +3,27 @@ module github.com/auvred/golar
 go 1.25.0
 
 replace (
-	github.com/microsoft/typescript-go/shim/ast => ./shim/ast
-	github.com/microsoft/typescript-go/shim/binder => ./shim/binder
-	github.com/microsoft/typescript-go/shim/bundled => ./shim/bundled
-	github.com/microsoft/typescript-go/shim/checker => ./shim/checker
-	github.com/microsoft/typescript-go/shim/compiler => ./shim/compiler
-	github.com/microsoft/typescript-go/shim/core => ./shim/core
-	github.com/microsoft/typescript-go/shim/diagnostics => ./shim/diagnostics
-	github.com/microsoft/typescript-go/shim/diagnosticwriter => ./shim/diagnosticwriter
-	github.com/microsoft/typescript-go/shim/fourslash => ./shim/fourslash
-	github.com/microsoft/typescript-go/shim/golarext => ./shim/golarext
-	github.com/microsoft/typescript-go/shim/lsp/lsproto => ./shim/lsp/lsproto
-	github.com/microsoft/typescript-go/shim/parser => ./shim/parser
-	github.com/microsoft/typescript-go/shim/project => ./shim/project
-	github.com/microsoft/typescript-go/shim/scanner => ./shim/scanner
-	github.com/microsoft/typescript-go/shim/testutil => ./shim/testutil
-	github.com/microsoft/typescript-go/shim/tsoptions => ./shim/tsoptions
-	github.com/microsoft/typescript-go/shim/tspath => ./shim/tspath
-	github.com/microsoft/typescript-go/shim/vfs => ./shim/vfs
-	github.com/microsoft/typescript-go/shim/vfs/cachedvfs => ./shim/vfs/cachedvfs
-	github.com/microsoft/typescript-go/shim/vfs/osvfs => ./shim/vfs/osvfs
+	github.com/microsoft/typescript-go/shim/ast => ./shim/typescript-go/ast
+	github.com/microsoft/typescript-go/shim/binder => ./shim/typescript-go/binder
+	github.com/microsoft/typescript-go/shim/bundled => ./shim/typescript-go/bundled
+	github.com/microsoft/typescript-go/shim/checker => ./shim/typescript-go/checker
+	github.com/microsoft/typescript-go/shim/compiler => ./shim/typescript-go/compiler
+	github.com/microsoft/typescript-go/shim/core => ./shim/typescript-go/core
+	github.com/microsoft/typescript-go/shim/diagnostics => ./shim/typescript-go/diagnostics
+	github.com/microsoft/typescript-go/shim/diagnosticwriter => ./shim/typescript-go/diagnosticwriter
+	github.com/microsoft/typescript-go/shim/fourslash => ./shim/typescript-go/fourslash
+	github.com/microsoft/typescript-go/shim/golarext => ./shim/typescript-go/golarext
+	github.com/microsoft/typescript-go/shim/lsp/lsproto => ./shim/typescript-go/lsp/lsproto
+	github.com/microsoft/typescript-go/shim/parser => ./shim/typescript-go/parser
+	github.com/microsoft/typescript-go/shim/project => ./shim/typescript-go/project
+	github.com/microsoft/typescript-go/shim/scanner => ./shim/typescript-go/scanner
+	github.com/microsoft/typescript-go/shim/sourcemap => ./shim/typescript-go/sourcemap
+	github.com/microsoft/typescript-go/shim/testutil => ./shim/typescript-go/testutil
+	github.com/microsoft/typescript-go/shim/tsoptions => ./shim/typescript-go/tsoptions
+	github.com/microsoft/typescript-go/shim/tspath => ./shim/typescript-go/tspath
+	github.com/microsoft/typescript-go/shim/vfs => ./shim/typescript-go/vfs
+	github.com/microsoft/typescript-go/shim/vfs/cachedvfs => ./shim/typescript-go/vfs/cachedvfs
+	github.com/microsoft/typescript-go/shim/vfs/osvfs => ./shim/typescript-go/vfs/osvfs
 )
 
 require (
@@ -36,7 +37,6 @@ require (
 	github.com/microsoft/typescript-go/shim/lsp/lsproto v0.0.0
 	github.com/microsoft/typescript-go/shim/project v0.0.0
 	github.com/microsoft/typescript-go/shim/scanner v0.0.0
-	github.com/microsoft/typescript-go/shim/testutil v0.0.0
 	github.com/microsoft/typescript-go/shim/diagnostics v0.0.0
 	github.com/microsoft/typescript-go/shim/diagnosticwriter v0.0.0
 	github.com/microsoft/typescript-go/shim/fourslash v0.0.0
@@ -44,6 +44,7 @@ require (
 	github.com/microsoft/typescript-go/shim/lsp/lsproto v0.0.0
 	github.com/microsoft/typescript-go/shim/parser v0.0.0
 	github.com/microsoft/typescript-go/shim/tsoptions v0.0.0
+	github.com/microsoft/typescript-go/shim/sourcemap v0.0.0
 	github.com/microsoft/typescript-go/shim/testutil v0.0.0
 	github.com/microsoft/typescript-go/shim/tspath v0.0.0
 	github.com/microsoft/typescript-go/shim/vfs v0.0.0

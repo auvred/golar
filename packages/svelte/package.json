@@ -1,0 +1,11 @@
+{
+	"name": "@golar/svelte",
+	"private": true,
+	"type": "module",
+	"dependencies": {
+		"@golar/plugin": "workspace:",
+		"svelte": "^5.46.3",
+		"svelte2tsx": "^0.7.46",
+		"typescript": "^5.9.3"
+	}
+}

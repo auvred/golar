@@ -1,0 +1,13 @@
+{
+	"name": "@golar/volar",
+	"private": true,
+	"type": "module",
+	"exports": "./src/index.ts",
+	"dependencies": {
+		"@golar/plugin": "workspace:",
+		"@volar/language-core": "^2.4.27"
+	},
+	"devDependencies": {
+		"@volar/typescript": "^2.4.27"
+	}
+}

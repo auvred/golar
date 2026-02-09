@@ -16,8 +16,6 @@ import (
 	"strings"
 )
 
-const tsgoInternalPrefix = "github.com/microsoft/typescript-go/internal/"
-
 type ExtraShim struct {
 	ExtraFunctions  []string
 	ExtraMethods    map[string]([]string)
@@ -27,7 +25,7 @@ type ExtraShim struct {
 }
 
 func main() {
-	packagesToShim := []string{
+	genShims("github.com/microsoft/typescript-go/internal/", []string{
 		"ast",
 		"binder",
 		"parser",
@@ -42,22 +40,32 @@ func main() {
 		"lsp/lsproto",
 		"project",
 		"scanner",
+		"sourcemap",
 		"testutil",
 		"tsoptions",
 		"tspath",
 		"vfs",
 		"vfs/cachedvfs",
 		"vfs/osvfs",
-	}
+	}, "./shim/typescript-go/",   "./shim/typescript-go/compiler")
 
+	genShims("github.com/withastro/compiler/internal/", []string{
+		"",
+		"transform",
+		"handler",
+		"printer",
+	}, "./shim/astro-compiler/",   "")
+}
+
+func genShims(internalPrefix string, packagesToShim []string, basePath string, firstPackage string) {
 	packagesToShimFullNames := make([]string, len(packagesToShim))
 	for i, pkg := range packagesToShim {
-		packagesToShimFullNames[i] = tsgoInternalPrefix + pkg
+		packagesToShimFullNames[i] = internalPrefix + pkg
 	}
 
 	packages, err := packages.Load(&packages.Config{
 		// TODO: path relative to repo root
-		Dir:  "./shim/compiler",
+		Dir: firstPackage,
 		Mode: packages.LoadSyntax,
 	}, packagesToShimFullNames...)
 	if err != nil {
@@ -69,7 +77,11 @@ func main() {
 	var tempBuffer bytes.Buffer
 
 	for _, pkg := range packages {
-		shimDirPath := path.Join("./shim/", strings.TrimPrefix(pkg.PkgPath, tsgoInternalPrefix))
+		trimmed := strings.TrimPrefix(pkg.PkgPath, internalPrefix)
+		shimDirPath := path.Join(basePath, trimmed)
+		if trimmed == pkg.PkgPath {
+			shimDirPath = path.Join(basePath, "internal")
+		}
 		var extraShim ExtraShim
 		extraShimFilePath := path.Join(shimDirPath, "extra-shim.json")
 		if data, err := os.ReadFile(extraShimFilePath); err == nil {

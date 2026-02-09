@@ -5,71 +5,58 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/fourslash"
 	"github.com/microsoft/typescript-go/shim/lsp/lsproto"
-	"github.com/microsoft/typescript-go/shim/testutil"
 )
 
 func TestDuplicateScriptSetupDiagnostic(t *testing.T) {
-	t.Parallel()
-
-	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	runFourslashTest(t, `// @filename: file.vue
 <script setup lang="ts">
 	const foo = 1
 </script>
 [|<script setup lang="ts">|]
 	const bar = 2
-</script>`)
-	f, done := fourslash.NewFourslash(t, nil, content)
-	defer done()
+</script>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
 
-	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-		{
-			Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](1_000_000)},
-			Message: "Single file component can contain only one <script setup> element.",
-		},
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](1_000_000)},
+				Message: "Single file component can contain only one <script setup> element.",
+			},
+		})
 	})
 }
 
 func TestDuplicateScriptDiagnostic(t *testing.T) {
-	t.Parallel()
-
-	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	runFourslashTest(t, `// @filename: file.vue
 <script lang="ts">
 	const foo = 1
 </script>
 [|<script lang="ts">|]
 	const bar = 2
-</script>`)
-	f, done := fourslash.NewFourslash(t, nil, content)
-	defer done()
+</script>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
 
-	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-		{
-			Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](1_000_002)},
-			Message: "Single file component can contain only one <script> element.",
-		},
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](1_000_002)},
+				Message: "Single file component can contain only one <script> element.",
+			},
+		})
 	})
 }
 
 func TestDuplicateTemplateDiagnostic(t *testing.T) {
-	t.Parallel()
-
-	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	runFourslashTest(t, `// @filename: file.vue
 <template>
 	<div>one</div>
 </template>
 [|<template>|]
 	<div>two</div>
-</template>`)
-	f, done := fourslash.NewFourslash(t, nil, content)
-	defer done()
+</template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
 
-	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-		{
-			Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](1_000_001)},
-			Message: "Single file component can contain only one <template> element.",
-		},
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](1_000_001)},
+				Message: "Single file component can contain only one <template> element.",
+			},
+		})
 	})
 }

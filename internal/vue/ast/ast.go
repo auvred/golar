@@ -152,13 +152,11 @@ type DirectiveNode struct {
 	// this is only used during parse.
 	RawName string
 	NameLoc core.TextRange
-	// The directive argument, e.g. "click" in v-on:click or @click
-	Arg *SimpleExpressionNode
-	// Whether the argument is static (e.g. @click) vs dynamic (e.g. @[eventName])
-	ArgIsStatic bool
 	// Nil when directive doesn't have expression
 	Expression     *SimpleExpressionNode
 	ForParseResult *ForParseResult
+	IsStatic       bool
+	Arg            string // TODO: support dynamic event names like @[event]="" *SimpleExpressionNode
 	// modifiers: SimpleExpressionNode[]
 }
 

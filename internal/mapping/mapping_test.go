@@ -1,323 +1,466 @@
 package mapping
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestBinarySearch(t *testing.T) {
-	t.Run("value between elements", func(t *testing.T) {
-		assertBinarySearch(t, []int{1, 3, 5, 7, 9}, 4, 1, 2, nil)
-	})
-	t.Run("value less than first element", func(t *testing.T) {
-		assertBinarySearch(t, []int{1, 3, 5, 7, 9}, 0, 0, 0, nil)
-	})
-	t.Run("value greater than last element", func(t *testing.T) {
-		assertBinarySearch(t, []int{1, 3, 5, 7, 9}, 10, 4, 4, nil)
-	})
-	t.Run("empty array", func(t *testing.T) {
-		assertBinarySearch(t, []int{}, 1, 0, -1, nil)
-	})
-	t.Run("value at start of array", func(t *testing.T) {
-		match := 0
-		assertBinarySearch(t, []int{1, 3, 5, 7, 9}, 1, 0, 0, &match)
-	})
-	t.Run("value at end of array", func(t *testing.T) {
-		match := 4
-		assertBinarySearch(t, []int{1, 3, 5, 7, 9}, 9, 4, 4, &match)
-	})
-	t.Run("single element array, value matches", func(t *testing.T) {
-		match := 0
-		assertBinarySearch(t, []int{1}, 1, 0, 0, &match)
-	})
-	t.Run("single element array, value does not match", func(t *testing.T) {
-		assertBinarySearch(t, []int{1}, 2, 0, 0, nil)
-	})
-	t.Run("two elements array, value matches first", func(t *testing.T) {
-		match := 0
-		assertBinarySearch(t, []int{1, 2}, 1, 0, 0, &match)
-	})
-	t.Run("two elements array, value matches second", func(t *testing.T) {
-		match := 1
-		assertBinarySearch(t, []int{1, 2}, 2, 1, 1, &match)
-	})
-	t.Run("two elements array, value does not match", func(t *testing.T) {
-		assertBinarySearch(t, []int{1, 2}, 3, 1, 1, nil)
-	})
+	cases := []struct {
+		name      string
+		values    []uint32
+		search    uint32
+		wantLow   int
+		wantHigh  int
+		wantMatch *int
+	}{
+		{
+			name:     "value between elements",
+			values:   []uint32{1, 3, 5, 7, 9},
+			search:   4,
+			wantLow:  1,
+			wantHigh: 2,
+		},
+		{
+			name:     "value less than first element",
+			values:   []uint32{1, 3, 5, 7, 9},
+			search:   0,
+			wantLow:  0,
+			wantHigh: 0,
+		},
+		{
+			name:     "value greater than last element",
+			values:   []uint32{1, 3, 5, 7, 9},
+			search:   10,
+			wantLow:  4,
+			wantHigh: 4,
+		},
+		{
+			name:     "empty array",
+			values:   []uint32{},
+			search:   1,
+			wantLow:  0,
+			wantHigh: -1,
+		},
+		{
+			name:      "value at start of array",
+			values:    []uint32{1, 3, 5, 7, 9},
+			search:    1,
+			wantLow:   0,
+			wantHigh:  0,
+			wantMatch: intPtr(0),
+		},
+		{
+			name:      "value at end of array",
+			values:    []uint32{1, 3, 5, 7, 9},
+			search:    9,
+			wantLow:   4,
+			wantHigh:  4,
+			wantMatch: intPtr(4),
+		},
+		{
+			name:      "single element array, value matches",
+			values:    []uint32{1},
+			search:    1,
+			wantLow:   0,
+			wantHigh:  0,
+			wantMatch: intPtr(0),
+		},
+		{
+			name:     "single element array, value does not match",
+			values:   []uint32{1},
+			search:   2,
+			wantLow:  0,
+			wantHigh: 0,
+		},
+		{
+			name:      "two elements array, value matches first",
+			values:    []uint32{1, 2},
+			search:    1,
+			wantLow:   0,
+			wantHigh:  0,
+			wantMatch: intPtr(0),
+		},
+		{
+			name:      "two elements array, value matches second",
+			values:    []uint32{1, 2},
+			search:    2,
+			wantLow:   1,
+			wantHigh:  1,
+			wantMatch: intPtr(1),
+		},
+		{
+			name:     "two elements array, value does not match",
+			values:   []uint32{1, 2},
+			search:   3,
+			wantLow:  1,
+			wantHigh: 1,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertBinarySearch(t, tc.values, tc.search, tc.wantLow, tc.wantHigh, tc.wantMatch)
+		})
+	}
 }
 
 func TestTranslateOffset(t *testing.T) {
-	t.Run("start within fromRange, offset within toRange", func(t *testing.T) {
-		assertTranslateOffset(t, 5, 1, 11, 9, nil, 15, true)
-	})
-	t.Run("start outside fromRange", func(t *testing.T) {
-		assertTranslateOffset(t, 0, 1, 11, 9, nil, 0, false)
-	})
-	t.Run("calculated offset outside toRange", func(t *testing.T) {
-		assertTranslateOffset(t, 11, 1, 11, 9, nil, 0, false)
-	})
-	t.Run("start at beginning of fromRange", func(t *testing.T) {
-		assertTranslateOffset(t, 1, 1, 11, 9, nil, 11, true)
-	})
-	t.Run("start at end of fromRange", func(t *testing.T) {
-		assertTranslateOffset(t, 10, 1, 11, 9, nil, 20, true)
-	})
-	t.Run("start at the end of fromRange with shorter toLength", func(t *testing.T) {
-		toLength := 7
-		assertTranslateOffset(t, 10, 1, 11, 9, &toLength, 18, true)
-	})
-}
-
-func TestMapperAngularTemplate(t *testing.T) {
-	mapper := NewMapper([]Mapping{
+	cases := []struct {
+		name        string
+		start       uint32
+		fromOffset  uint32
+		toOffset    uint32
+		fromLength  uint32
+		toLength    uint32
+		want        uint32
+		wantOk      bool
+	}{
 		{
-			SourceOffset: idx(`{{|data?.icon?.toString()}}`),
-			ServiceOffset: idx(
-				`(null as any ? ((null as any ? ((null as any ? (this.|data)!.icon : undefined)!.toString : undefined))!() : undefined)`,
-			),
-			Length: len(`data`),
+			name:        "start within fromRange, offset within toRange",
+			start:       5,
+			fromOffset: 1,
+			toOffset:   11,
+			fromLength: 9,
+			toLength: 9,
+			want:        15,
+			wantOk:      true,
 		},
 		{
-			SourceOffset: idx(`{{data?.|icon?.toString()}}`),
-			ServiceOffset: idx(
-				`(null as any ? ((null as any ? ((null as any ? (this.data)!.|icon : undefined)!.toString : undefined))!() : undefined)`,
-			),
-			Length: len(`icon`),
+			name:        "start outside fromRange",
+			start:       0,
+			fromOffset: 1,
+			toOffset:   11,
+			fromLength: 9,
+			toLength: 9,
+			want:        0,
+			wantOk:      false,
 		},
 		{
-			SourceOffset: idx(`{{data?.icon?.|toString()}}`),
-			ServiceOffset: idx(
-				`(null as any ? ((null as any ? ((null as any ? (this.data)!.icon : undefined)!.|toString : undefined))!() : undefined)`,
-			),
-			Length: len(`toString`),
+			name:        "start at end of fromRange with shorter toLength",
+			start:       10,
+			fromOffset: 1,
+			toOffset:   11,
+			fromLength: 9,
+			toLength:   7,
+			want:        18,
+			wantOk:      true,
 		},
 		{
-			SourceOffset: idx(`{{data?.icon?.toString|()}}`),
-			ServiceOffset: idx(
-				`(null as any ? ((null as any ? ((null as any ? (this.data)!.icon : undefined)!.toString : undefined))!|() : undefined)`,
-			),
-			Length: len(`()`),
+			name:        "uses fromLengths when toLengths is empty",
+			start:       3,
+			fromOffset: 1,
+			toOffset:   11,
+			fromLength: 4,
+			toLength: 4,
+			want:        13,
+			wantOk:      true,
 		},
-	})
-
-	ranges := mapper.ToServiceRange(
-		idx(`{{|data?.icon?.toString()}}`),
-		idx(`{{data|?.icon?.toString()}}`),
-		false,
-	)
-	if len(ranges) != 1 {
-		t.Fatalf("expected 1 range, got %d", len(ranges))
+		{
+			name:        "start equals fromOffset",
+			start:       10,
+			fromOffset: 10,
+			toOffset:   50,
+			fromLength: 2,
+			toLength: 2,
+			want:        50,
+			wantOk:      true,
+		},
 	}
-	assertRangeOffsets(
-		t,
-		ranges[0],
-		idx(`(null as any ? ((null as any ? ((null as any ? (this.|data)!.icon : undefined)!.toString : undefined))!() : undefined)`),
-		idx(`(null as any ? ((null as any ? ((null as any ? (this.data|)!.icon : undefined)!.toString : undefined))!() : undefined)`),
-	)
 
-	ranges = mapper.ToServiceRange(
-		idx(`{{|data?.icon?.toString()}}`),
-		idx(`{{data?.ic|on?.toString()}}`),
-		false,
-	)
-	if len(ranges) != 0 {
-		t.Fatalf("expected no ranges, got %d", len(ranges))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertTranslateOffset(t, tc.start, tc.fromOffset, tc.toOffset, tc.fromLength, tc.toLength, tc.want, tc.wantOk)
+		})
 	}
 }
 
-func TestMapperFallbackToAnyMatch(t *testing.T) {
-	mapper := NewMapper([]Mapping{
-		{
-			SourceOffset: idx(`{{|data?.icon?.toString()}}`),
-			ServiceOffset: idx(
-				`(null as any ? ((null as any ? (|(null as any ? (this.data)!.icon : undefined)!.toString : undefined))!() : undefined)`,
-			),
-			Length: 0,
-		},
-		{
-			SourceOffset: idx(`{{data?.icon|?.toString()}}`),
-			ServiceOffset: idx(
-				`(null as any ? ((null as any ? ((null as any ? (this.data)!.icon : undefined)|!.toString : undefined))!() : undefined)`,
-			),
-			Length: 0,
-		},
-	})
-
-	ranges := mapper.ToServiceRange(
-		idx(`{{|data?.icon?.toString()}}`),
-		idx(`{{data?.icon|?.toString()}}`),
-		false,
-	)
-	if len(ranges) != 0 {
-		t.Fatalf("expected no ranges, got %d", len(ranges))
+func TestSourceMapLocations(t *testing.T) {
+	mapping1 := Mapping{
+		SourceOffset:  0,
+		ServiceOffset: 100,
+		SourceLength:  5,
+	}
+	mapping2 := Mapping{
+		SourceOffset:  10,
+		ServiceOffset: 110,
+		SourceLength:  5,
+	}
+	overlapMapping := Mapping{
+		SourceOffset:  0,
+		ServiceOffset: 100,
+		SourceLength:  10,
 	}
 
-	ranges = mapper.ToServiceRange(
-		idx(`{{|data?.icon?.toString()}}`),
-		idx(`{{data?.icon|?.toString()}}`),
-		true,
-	)
-	if len(ranges) != 1 {
-		t.Fatalf("expected 1 range, got %d", len(ranges))
-	}
-	assertRangeOffsets(
-		t,
-		ranges[0],
-		idx(`(null as any ? ((null as any ? (|(null as any ? (this.data)!.icon : undefined)!.toString : undefined))!() : undefined)`),
-		idx(`(null as any ? ((null as any ? ((null as any ? (this.data)!.icon : undefined)|!.toString : undefined))!() : undefined)`),
-	)
-}
-
-func TestMapperFallbackOverlapRange(t *testing.T) {
-	mapper := NewMapper([]Mapping{
+	cases := []struct {
+		name      string
+		mappings  []Mapping
+		toSource  bool
+		offset    uint32
+		want      []uint32
+		wantEmpty bool
+	}{
 		{
-			SourceOffset:  10,
-			ServiceOffset: 100,
-			Length:        10,
-		},
-	})
-
-	ranges := mapper.ToSourceRange(90, 120, true)
-	if len(ranges) != 1 {
-		t.Fatalf("expected 1 range, got %d", len(ranges))
-	}
-	assertRangeOffsets(t, ranges[0], 10, 20)
-}
-
-func TestMapperNoOverlapRange(t *testing.T) {
-	mapper := NewMapper([]Mapping{
-		{
-			SourceOffset:  10,
-			ServiceOffset: 100,
-			Length:        10,
+			name:      "empty mappings",
+			mappings:  nil,
+			toSource:  true,
+			offset:    10,
+			wantEmpty: true,
 		},
 		{
-			SourceOffset:  20,
-			ServiceOffset: 120,
-			Length:        10,
+			name:     "to source location",
+			mappings: []Mapping{mapping1, mapping2},
+			toSource: true,
+			offset:   102,
+			want:     []uint32{2},
 		},
-	})
-
-	ranges := mapper.ToSourceRange(112, 115, true)
-	if len(ranges) != 0 {
-		t.Fatalf("expected no ranges, got %d", len(ranges))
+		{
+			name:     "to service location",
+			mappings: []Mapping{mapping1, mapping2},
+			toSource: false,
+			offset:   12,
+			want:     []uint32{112},
+		},
+		{
+			name:     "dedupes mapping across memo buckets",
+			mappings: []Mapping{overlapMapping},
+			toSource: true,
+			offset:   105,
+			want:     []uint32{5},
+		},
+		{
+			name:     "no matching location",
+			mappings: []Mapping{mapping1, mapping2},
+			toSource: false,
+			offset:   99,
+			want:     nil,
+		},
 	}
-}
 
-func TestMapperEmptyMappings(t *testing.T) {
-	mapper := NewMapper(nil)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sourceMap := NewSourceMap(tc.mappings)
+			var locations []MappedLocation
+			if tc.toSource {
+				locations = sourceMap.ToSourceLocation(tc.offset)
+			} else {
+				locations = sourceMap.ToServiceLocation(tc.offset)
+			}
 
-	if got := mapper.ToSourceLocation(5); got != nil {
-		t.Fatalf("expected nil locations, got %v", got)
-	}
-
-	ranges := mapper.ToSourceRange(1, 2, true)
-	if len(ranges) != 0 {
-		t.Fatalf("expected no ranges, got %d", len(ranges))
+			if tc.wantEmpty {
+				if len(locations) != 0 {
+					t.Fatalf("expected no locations, got %d", len(locations))
+				}
+				return
+			}
+			assertLocationsSet(t, locations, tc.want)
+		})
 	}
 }
 
-func TestMapperDedupesLocations(t *testing.T) {
-	mapper := NewMapper([]Mapping{
-		{
-			SourceOffset:  10,
-			ServiceOffset: 100,
-			Length:        10,
-		},
-	})
-
-	locations := mapper.ToServiceLocation(15)
-	if len(locations) != 1 {
-		t.Fatalf("expected 1 location, got %d", len(locations))
+func TestSourceMapRanges(t *testing.T) {
+	basicMapping := Mapping{
+		SourceOffset:  0,
+		ServiceOffset: 100,
+		SourceLength:  5,
 	}
-	if locations[0].Offset != 105 {
-		t.Fatalf("expected offset 105, got %d", locations[0].Offset)
+	multiSegment1 := Mapping{
+		SourceOffset:  0,
+		ServiceOffset: 100,
+		SourceLength:  5,
+	}
+	multiSegment2 := Mapping{
+		SourceOffset:  20,
+		ServiceOffset: 200,
+		SourceLength:  5,
+	}
+	serviceLengthMapping := Mapping{
+		SourceOffset:  0,
+		ServiceOffset: 100,
+		SourceLength:  10,
+		ServiceLength: 5,
+	}
+	mappingA := Mapping{
+		SourceOffset:  0,
+		ServiceOffset: 100,
+		SourceLength:  5,
+	}
+	mappingB := Mapping{
+		SourceOffset:  10,
+		ServiceOffset: 200,
+		SourceLength:  5,
+	}
+	reversedStart := Mapping{
+		SourceOffset:  0,
+		ServiceOffset: 200,
+		SourceLength:  5,
+	}
+	reversedEnd := Mapping{
+		SourceOffset:  10,
+		ServiceOffset: 100,
+		SourceLength:  5,
+	}
+
+	cases := []struct {
+		name     string
+		mappings []Mapping
+		toSource bool
+		start    uint32
+		end      uint32
+		fallback bool
+		want     [][2]uint32
+	}{
+		{
+			name:     "direct mapping to source",
+			mappings: []Mapping{basicMapping},
+			toSource: true,
+			start:    100,
+			end:      105,
+			fallback: false,
+			want:     [][2]uint32{{0, 5}},
+		},
+		{
+			name:     "direct mapping to service",
+			mappings: []Mapping{basicMapping},
+			toSource: false,
+			start:    0,
+			end:      5,
+			fallback: false,
+			want:     [][2]uint32{{100, 105}},
+		},
+		{
+			name:     "start in segment, end outside without fallback",
+			mappings: []Mapping{basicMapping},
+			toSource: false,
+			start:    2,
+			end:      12,
+			fallback: false,
+			want:     nil,
+		},
+		{
+			name:     "fallback maps across mappings",
+			mappings: []Mapping{mappingA, mappingB},
+			toSource: false,
+			start:    2,
+			end:      12,
+			fallback: true,
+			want:     [][2]uint32{{102, 202}},
+		},
+		{
+			name:     "fallback skips reversed range",
+			mappings: []Mapping{reversedStart, reversedEnd},
+			toSource: false,
+			start:    2,
+			end:      12,
+			fallback: true,
+			want:     nil,
+		},
+		{
+			name:     "service lengths constrain mapped end",
+			mappings: []Mapping{serviceLengthMapping},
+			toSource: false,
+			start:    2,
+			end:      8,
+			fallback: false,
+			want:     [][2]uint32{{102, 105}},
+		},
+		{
+			name:     "multiple segments in one mapping",
+			mappings: []Mapping{multiSegment1, multiSegment2},
+			toSource: false,
+			start:    22,
+			end:      24,
+			fallback: false,
+			want:     [][2]uint32{{202, 204}},
+		},
+		{
+			name:     "no mappings",
+			mappings: nil,
+			toSource: true,
+			start:    0,
+			end:      1,
+			fallback: true,
+			want:     nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sourceMap := NewSourceMap(tc.mappings)
+			var ranges []MappedRange
+			if tc.toSource {
+				ranges = sourceMap.ToSourceRange(tc.start, tc.end, tc.fallback)
+			} else {
+				ranges = sourceMap.ToServiceRange(tc.start, tc.end, tc.fallback)
+			}
+			assertRangesSet(t, ranges, tc.want)
+		})
 	}
 }
 
-func TestMapperFallbackSkipsReversedRange(t *testing.T) {
-	mapper := NewMapper([]Mapping{
-		{
-			SourceOffset:  10,
-			ServiceOffset: 200,
-			Length:        5,
-		},
-		{
-			SourceOffset:  30,
-			ServiceOffset: 100,
-			Length:        5,
-		},
-	})
-
-	ranges := mapper.ToServiceRange(12, 31, true)
-	assertRangeSet(t, ranges, [][2]int{
-		{202, 205},
-		{100, 101},
-	})
-}
-
-func assertBinarySearch(t *testing.T, values []int, search int, wantLow int, wantHigh int, wantMatch *int) {
+func assertBinarySearch(t *testing.T, values []uint32, search uint32, wantLow int, wantHigh int, wantMatch *int) {
 	t.Helper()
 
-	low, high, match, ok := binarySearch(values, search)
+	low, high, match := BinarySearch(values, search)
 	if low != wantLow || high != wantHigh {
 		t.Fatalf("expected low=%d high=%d, got low=%d high=%d", wantLow, wantHigh, low, high)
 	}
 
 	if wantMatch == nil {
-		if ok {
-			t.Fatalf("expected no match, got match index %d", match)
-		}
 		return
 	}
 
-	if !ok || match != *wantMatch {
-		t.Fatalf("expected match index %d, got ok=%v match=%d", *wantMatch, ok, match)
+	if match != *wantMatch {
+		t.Fatalf("expected match index %d, got match=%d", *wantMatch, match)
 	}
 }
 
 func assertTranslateOffset(
 	t *testing.T,
-	start int,
-	fromOffset int,
-	toOffset int,
-	fromLength int,
-	toLength *int,
-	want int,
+	start uint32,
+	fromOffset uint32,
+	toOffset uint32,
+	fromLength uint32,
+	toLength uint32,
+	want uint32,
 	wantOk bool,
 ) {
 	t.Helper()
 
-	var (
-		got int
-		ok  bool
-	)
-	if toLength == nil {
-		got, ok = translateOffset(start, fromOffset, toOffset, fromLength)
-	} else {
-		got, ok = translateOffset(start, fromOffset, toOffset, fromLength, *toLength)
-	}
-
+	got, ok := TranslateOffset(start, fromOffset, toOffset, fromLength, toLength)
 	if ok != wantOk || (ok && got != want) {
 		t.Fatalf("expected ok=%v offset=%d, got ok=%v offset=%d", wantOk, want, ok, got)
 	}
 }
 
-func assertRangeOffsets(t *testing.T, got MappedRange, wantStart int, wantEnd int) {
+func assertLocationsSet(t *testing.T, got []MappedLocation, want []uint32) {
 	t.Helper()
 
-	if got.MappedStart != wantStart || got.MappedEnd != wantEnd {
-		t.Fatalf("expected range [%d, %d], got [%d, %d]", wantStart, wantEnd, got.MappedStart, got.MappedEnd)
+	if len(got) != len(want) {
+		t.Fatalf("expected %d locations, got %d", len(want), len(got))
+	}
+	seen := make([]bool, len(want))
+	for _, item := range got {
+		matched := false
+		for i, w := range want {
+			if seen[i] {
+				continue
+			}
+			if item.Offset == w {
+				seen[i] = true
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Fatalf("unexpected location offset %d", item.Offset)
+		}
 	}
 }
 
-func assertRangeSet(t *testing.T, got []MappedRange, want [][2]int) {
+func assertRangesSet(t *testing.T, got []MappedRange, want [][2]uint32) {
 	t.Helper()
 
 	if len(got) != len(want) {
 		t.Fatalf("expected %d ranges, got %d", len(want), len(got))
 	}
-
 	seen := make([]bool, len(want))
 	for _, item := range got {
 		matched := false
@@ -337,6 +480,6 @@ func assertRangeSet(t *testing.T, got []MappedRange, want [][2]int) {
 	}
 }
 
-func idx(value string) int {
-	return strings.Index(value, "|")
+func intPtr(value int) *int {
+	return &value
 }

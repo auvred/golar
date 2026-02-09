@@ -4,9 +4,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/microsoft/typescript-go/shim/scanner"
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/core"
+	"github.com/microsoft/typescript-go/shim/scanner"
 )
 
 // https://tc39.es/ecma262/2025/multipage/ecmascript-language-lexical-grammar.html#sec-white-space
@@ -49,6 +49,11 @@ func TrimWhiteSpaceOrLineTerminator(str string) (string, int, int) {
 }
 
 func TrimNodeTextRange(sourceFile *ast.SourceFile, node *ast.Node) core.TextRange {
-	return scanner.GetRangeOfTokenAtPosition(sourceFile, node.Pos()).WithEnd(node.End())
+	pos := scanner.SkipTrivia(sourceFile.Text(), node.Pos())
+	return core.NewTextRange(pos, max(pos, node.End()))
+	// return scanner.GetRangeOfTokenAtPosition(sourceFile, node.Pos()).WithEnd(node.End())
 }
 
+func MoveTextRange(loc core.TextRange, number int) core.TextRange {
+	return core.NewTextRange(number+loc.Pos(), number+loc.End())
+}

@@ -1,0 +1,14 @@
+{
+	"packageManager": "pnpm@10.28.0",
+	"type": "module",
+	"scripts": {
+		"postinstall": "pnpm i -C internal/vue/tests/vue-3.2 && pnpm i -C internal/vue/tests/vue-3.3 && pnpm i -C internal/vue/tests/vue-3.4 && pnpm i -C internal/vue/tests/vue-3.5 && pnpm i -C internal/vue/tests/vue-3.6"
+	},
+	"devDependencies": {
+		"@types/node": "^25.0.8"
+	},
+	"dependencies": {
+		"svelte": "^5.46.3",
+		"svelte2tsx": "^0.7.46"
+	}
+}

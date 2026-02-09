@@ -1,6 +1,9 @@
 package vue_codegen
 
 import (
+	"strings"
+
+	"github.com/auvred/golar/internal/collections"
 	"github.com/auvred/golar/internal/utils"
 	"github.com/auvred/golar/internal/vue/ast"
 	"github.com/auvred/golar/internal/vue/diagnostics"
@@ -8,130 +11,19 @@ import (
 	"github.com/microsoft/typescript-go/shim/core"
 )
 
-// getAttributeValue returns the value of an attribute by name, or empty string if not found
-func getAttributeValue(el *vue_ast.ElementNode, name string) string {
-	for _, prop := range el.Props {
-		if prop.Kind == vue_ast.KindAttribute {
-			attr := prop.AsAttribute()
-			if attr.Name == name && attr.Value != nil {
-				return attr.Value.Content
-			}
-		}
-	}
-	return ""
-}
+// TODO: <script src="">
 
 type scriptCodegenCtx struct {
 	*codegenCtx
 	scriptSetupEl *vue_ast.ElementNode
 	scriptEl      *vue_ast.ElementNode
-	templateEl    *vue_ast.ElementNode // nil if template should be generated separately
-}
+	lastMappedPos int
 
-// definePropsInfo holds information about a defineProps call
-type definePropsInfo struct {
-	// Variable name if assigned (e.g., "props" in `const props = defineProps<T>()`)
-	// Empty if not assigned to a variable
-	varName string
-	// Type argument range if using type-only syntax: defineProps<{ msg: string }>()
-	typeArgRange *core.TextRange
-	// Runtime argument range if using runtime syntax: defineProps({ msg: String })
-	runtimeArgRange *core.TextRange
-}
+	bindingRanges []core.TextRange
 
-// extractDefinePropsFromCall extracts defineProps info from a call expression.
-// Returns nil if the call is not defineProps or withDefaults(defineProps<T>(), {...})
-func extractDefinePropsFromCall(callExpr *ast.Node) *definePropsInfo {
-	if callExpr == nil || !ast.IsCallExpression(callExpr) {
-		return nil
-	}
-
-	call := callExpr.AsCallExpression()
-
-	// Check for direct defineProps call
-	if ast.IsIdentifier(call.Expression) {
-		if call.Expression.AsIdentifier().Text == "defineProps" {
-			info := &definePropsInfo{}
-
-			// Check for type argument: defineProps<{ msg: string }>()
-			if call.TypeArguments != nil && len(call.TypeArguments.Nodes) > 0 {
-				typeArg := call.TypeArguments.Nodes[0]
-				r := core.NewTextRange(typeArg.Pos(), typeArg.End())
-				info.typeArgRange = &r
-			}
-
-			// Check for runtime argument: defineProps({ msg: String })
-			if call.Arguments != nil && len(call.Arguments.Nodes) > 0 {
-				arg := call.Arguments.Nodes[0]
-				r := core.NewTextRange(arg.Pos(), arg.End())
-				info.runtimeArgRange = &r
-			}
-
-			return info
-		}
-
-		// Check for withDefaults(defineProps<T>(), {...})
-		if call.Expression.AsIdentifier().Text == "withDefaults" {
-			if call.Arguments != nil && len(call.Arguments.Nodes) > 0 {
-				// First argument should be defineProps call
-				firstArg := call.Arguments.Nodes[0]
-				if ast.IsCallExpression(firstArg) {
-					innerCall := firstArg.AsCallExpression()
-					if ast.IsIdentifier(innerCall.Expression) &&
-						innerCall.Expression.AsIdentifier().Text == "defineProps" {
-						info := &definePropsInfo{}
-
-						// Extract type argument from inner defineProps
-						if innerCall.TypeArguments != nil && len(innerCall.TypeArguments.Nodes) > 0 {
-							typeArg := innerCall.TypeArguments.Nodes[0]
-							r := core.NewTextRange(typeArg.Pos(), typeArg.End())
-							info.typeArgRange = &r
-						}
-
-						return info
-					}
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// findDefineProps looks for defineProps calls in the script setup AST
-func findDefineProps(file *ast.SourceFile) *definePropsInfo {
-	for _, stmt := range file.Statements.Nodes {
-		var callExpr *ast.Node
-		var varName string
-
-		switch stmt.Kind {
-		case ast.KindVariableStatement:
-			// const props = defineProps<T>() or const props = withDefaults(defineProps<T>(), {...})
-			decls := stmt.AsVariableStatement().DeclarationList.AsVariableDeclarationList().Declarations.Nodes
-			for _, decl := range decls {
-				varDecl := decl.AsVariableDeclaration()
-				if varDecl.Initializer != nil && ast.IsCallExpression(varDecl.Initializer) {
-					callExpr = varDecl.Initializer
-					if ast.IsIdentifier(varDecl.Name()) {
-						varName = varDecl.Name().AsIdentifier().Text
-					}
-				}
-			}
-		case ast.KindExpressionStatement:
-			// Standalone defineProps<T>() or withDefaults(defineProps<T>(), {...})
-			expr := stmt.AsExpressionStatement().Expression
-			if ast.IsCallExpression(expr) {
-				callExpr = expr
-			}
-		}
-
-		if info := extractDefinePropsFromCall(callExpr); info != nil {
-			info.varName = varName
-			return info
-		}
-	}
-
-	return nil
+	seenDefineModels        collections.Set[string]
+	modelPropsVariableNames []string
+	modelEmitsVariableNames []string
 }
 
 func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, scriptEl *vue_ast.ElementNode, templateEl *vue_ast.ElementNode) {
@@ -139,182 +31,134 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		codegenCtx:    base,
 		scriptSetupEl: scriptSetupEl,
 		scriptEl:      scriptEl,
-		templateEl:    templateEl,
 	}
 
-	c.serviceText.WriteString("import { defineComponent as __VLS_DefineComponent, defineProps } from 'vue'\n")
+	// TODO: without "ts" lang
+	// TODO: tsx
 
-	// Handle template-only components (no <script> or <script setup>)
-	if c.scriptEl == nil && c.scriptSetupEl == nil {
-		c.serviceText.WriteString("const __VLS_ctx = {} as import('vue').ComponentPublicInstance;\n")
-		c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
-		c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
-		c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
-		c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
-		c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
-		c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
-		generateTemplate(c.codegenCtx, templateEl)
-		return
-	}
+	// we don't import define* macros because they're globally available
+	// https://github.com/vuejs/core/blob/aac7e1898907445c8f89b22047a9bfcf0a6e91b8/packages/runtime-core/types/scriptSetupHelpers.d.ts
+	c.serviceText.WriteString("import { defineComponent as __VLS_DefineComponent } from 'vue'\n")
 
 	var selfType string
 	if c.scriptEl != nil {
-		// Handle <script src="..."> - external script source
-		if srcAttr := getAttributeValue(c.scriptEl, "src"); srcAttr != "" {
-			// Generate import from external source and re-export
-			c.serviceText.WriteString("import __VLS_default from '")
-			c.serviceText.WriteString(srcAttr)
-			c.serviceText.WriteString("';\n")
-			c.serviceText.WriteString("export default __VLS_default;;\n")
-			selfType = "__VLS_default"
-			// External script with src doesn't have inline content, skip the rest
-		} else {
-			// Handle inline <script> content
-			if len(c.scriptEl.Children) != 1 {
-				panic("TODO: len of <script> children != 1")
-			}
-
-			innerStart := c.scriptEl.InnerLoc.Pos()
-			text := c.scriptEl.Children[0].AsText()
-
-			mapStart := text.Loc.Pos()
-			hasExportDefault := false
-
-			for _, statement := range c.scriptEl.Ast.Statements.Nodes {
-				if !ast.IsExportAssignment(statement) {
-					continue
-				}
-
-				hasExportDefault = true
-				export := statement.AsExportAssignment()
-				c.mapText(mapStart, innerStart+export.Expression.Pos())
-				c.serviceText.WriteString(" {} as unknown as typeof __VLS_Export\n")
-				if c.scriptSetupEl == nil {
-					c.serviceText.WriteString("const __VLS_Export = ")
-					selfType = "__VLS_Export"
-				} else {
-					c.serviceText.WriteString("const __VLS_Self = ")
-					selfType = "__VLS_Self"
-				}
-				mapStart = innerStart + export.Expression.Pos()
-
-				break
-			}
-
-			c.mapText(mapStart, text.Loc.End())
-			c.serviceText.WriteString("\n\n")
-
-			// Only create __VLS_Export for regular script if there's no script setup
-			// When both exist, script setup will create __VLS_Export
-			if !hasExportDefault && c.scriptSetupEl == nil {
-				c.serviceText.WriteString("const __VLS_Export = __VLS_DefineComponent({})\nexport default __VLS_Export\n")
-				selfType = "__VLS_Export"
-			}
-
-			// TODO: options wrapper - wrap export default |defineComponent(|{}|)|
+		if len(c.scriptEl.Children) != 1 {
+			panic("TODO: len of <script> children != 1")
 		}
 
-		// For regular <script> (no setup), generate __VLS_ctx and component types
-		if c.scriptSetupEl == nil && selfType != "" {
-			c.serviceText.WriteString("const __VLS_ctx = {} as InstanceType<__VLS_PickNotAny<typeof ")
-			c.serviceText.WriteString(selfType)
-			c.serviceText.WriteString(", new () => {}>>;\n")
-			c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
-			c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
-			c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
-			c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
-			c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
-			c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
+		innerStart := c.scriptEl.InnerLoc.Pos()
+		text := c.scriptEl.Children[0].AsText()
+
+		c.lastMappedPos = text.Loc.Pos()
+
+		for _, statement := range c.scriptEl.Ast.Statements.Nodes {
+			if c.scriptSetupEl != nil {
+				c.collectBindingRanges(innerStart, statement)
+			}
+			if !ast.IsExportAssignment(statement) {
+				continue
+			}
+			// TODO: report export equals? (export = ...)
+
+			export := statement.AsExportAssignment()
+			if c.scriptSetupEl == nil {
+				c.mapText(c.lastMappedPos, innerStart+export.Expression.Pos())
+				c.serviceText.WriteString(" {} as unknown as typeof __VLS_Self\n")
+				c.serviceText.WriteString("const __VLS_Self = ")
+				selfType = "__VLS_Self"
+				expr := export.Expression
+				for ast.IsParenthesizedExpression(expr) || ast.KindAsExpression == expr.Kind {
+					expr = expr.Expression()
+				}
+				if ast.IsObjectLiteralExpression(expr) {
+					exportLoc := utils.TrimNodeTextRange(c.scriptEl.Ast, export.AsNode())
+					c.mapRange(innerStart+exportLoc.Pos(), innerStart+export.Expression.Pos(), c.serviceText.Len(), c.serviceText.Len()+len("__VLS_DefineComponent"))
+					c.serviceText.WriteString("__VLS_DefineComponent(")
+				}
+				c.mapText(innerStart+export.Expression.Pos(), innerStart+export.Expression.End())
+				c.lastMappedPos = innerStart + export.Expression.End()
+				if ast.IsObjectLiteralExpression(expr) {
+					c.serviceText.WriteString(")")
+				}
+			} else {
+				c.mapText(c.lastMappedPos, innerStart+export.Pos())
+				c.serviceText.WriteString(";(")
+				c.mapText(innerStart+export.Expression.Pos(), innerStart+export.Expression.End())
+				c.serviceText.WriteString(")\n")
+				c.lastMappedPos = innerStart + export.Expression.End()
+			}
+
+			break
 		}
+
+		c.mapText(c.lastMappedPos, text.Loc.End())
+		c.serviceText.WriteString("\n\n")
+
+		// TODO: options wrapper - wrap export default |defineComponent(|{}|)|
 	}
 
-	// TODO: generic support
 	if c.scriptSetupEl != nil {
-		// Handle empty <script setup>
-		if len(c.scriptSetupEl.Children) == 0 {
-			if c.scriptEl != nil && selfType != "" {
-				// Empty <script setup> with regular <script>
-				// Generate the async IIFE wrapper with ctx based on the regular script's export
-				c.serviceText.WriteString("const __VLS_export = await (async () => {\n")
-				c.serviceText.WriteString("const __VLS_ctx = {} as InstanceType<__VLS_PickNotAny<typeof ")
-				c.serviceText.WriteString(selfType)
-				c.serviceText.WriteString(", new () => {}>>;\n")
-				c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
-				c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
-				c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
-				c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
-				c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
-				c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
-				generateTemplate(c.codegenCtx, templateEl)
-				c.serviceText.WriteString("return (await import('vue')).defineComponent({});\n")
-				c.serviceText.WriteString("})();\n")
-			} else {
-				// Just empty <script setup> with no regular script
-				c.serviceText.WriteString("const __VLS_ctx = {} as import('vue').ComponentPublicInstance;\n")
-				c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
-				c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
-				c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
-				c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
-				c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
-				c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
-				generateTemplate(c.codegenCtx, templateEl)
-			}
-			return
-		}
 		if len(c.scriptSetupEl.Children) != 1 {
 			panic("TODO: len of <script setup> children != 1")
 		}
 
+		c.serviceText.WriteString("const __VLS_Export = ")
+
+		hasGeneric := false
+		for _, prop := range c.scriptSetupEl.Props {
+			if prop.Kind != vue_ast.KindAttribute {
+				continue
+			}
+
+			attr := prop.AsAttribute()
+			switch attr.Name {
+			case "generic":
+				if attr.Value == nil {
+					break
+				}
+				hasGeneric = true
+
+				c.serviceText.WriteByte('<')
+				c.mapText(attr.Value.Loc.Pos(), attr.Value.Loc.End())
+				if !strings.HasSuffix(attr.Value.Content, ",") {
+					c.serviceText.WriteByte(',')
+				}
+				c.serviceText.WriteString(`>(
+__VLS_GenericProps: NonNullable<Awaited<typeof __VLS_GenericSetup>>['props'],
+__VLS_GenericCtx?: __VLS_PrettifyGlobal<Pick<NonNullable<Awaited<typeof __VLS_GenericSetup>>, 'attrs' | 'emit' | 'slots'>>,
+__VLS_GenericExposed?: NonNullable<Awaited<typeof __VLS_GenericSetup>>['expose'],
+__VLS_GenericSetup = `)
+			}
+		}
+
 		text := c.scriptSetupEl.Children[0].AsText()
 
-		if c.scriptEl != nil {
-			// When both <script> and <script setup> exist, add export default first
-			c.serviceText.WriteString("export default {} as typeof __VLS_Export\n")
-			c.serviceText.WriteString("const __VLS_Export = await (async () => {\n")
-		} else {
-			// Script setup only - define __VLS_Export without async IIFE
-			c.serviceText.WriteString("const __VLS_Export = __VLS_DefineComponent({})\n")
-		}
+		c.serviceText.WriteString("(async () => {\n")
 		innerStart := c.scriptSetupEl.InnerLoc.Pos()
 
-		// Find defineProps call
-		propsInfo := findDefineProps(c.scriptSetupEl.Ast)
+		c.lastMappedPos = text.Loc.Pos()
 
-		// Collect type declarations to hoist and other statement ranges
-		typeRanges := []core.TextRange{}
-		var propsVariableName string
+		var (
+			propsVariableName string
+			emitsVariableName string
+			slotsVariableName string
+			hasExpose bool
+		)
 
 		// TODO: report nested compiler macros (vue compiler errors on them)
+		// TODO: report incorrect compiler macros arguments
+		// TODO: $emits, $props, emitstoprops
 
-		bindingRanges := []core.TextRange{}
-		bindingNames := []string{} // Store actual identifier names for setupConsts
 		importRanges := []core.TextRange{}
-
 		for _, statement := range c.scriptSetupEl.Ast.Statements.Nodes {
+			c.collectBindingRanges(innerStart, statement)
 			switch statement.Kind {
-			case ast.KindTypeAliasDeclaration, ast.KindInterfaceDeclaration:
-				// Collect type/interface declarations for hoisting
-				typeRanges = append(typeRanges, core.NewTextRange(innerStart+statement.Loc.Pos(), innerStart+statement.Loc.End()))
 			case ast.KindVariableStatement:
 				for _, d := range statement.AsVariableStatement().DeclarationList.AsVariableDeclarationList().Declarations.Nodes {
 					decl := d.AsVariableDeclaration()
 					name := decl.Name()
-					var visitor ast.Visitor
-					// TODO: binding pattern?
-					// TODO: declare const?
-					visitor = func(n *ast.Node) bool {
-						if ast.IsIdentifier(n) {
-							bindingRanges = append(bindingRanges, n.Loc)
-							bindingNames = append(bindingNames, n.AsIdentifier().Text)
-						}
-						return n.ForEachChild(visitor)
-					}
-					visitor(name)
 
-					// TODO: report props destructuring?
-					if !ast.IsIdentifier(name) {
-						break
-					}
+					nameIsIdentifier := ast.IsIdentifier(name)
 					if decl.Initializer == nil || !ast.IsCallExpression(decl.Initializer) {
 						break
 					}
@@ -325,15 +169,68 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 						break
 					}
 					calleeName := callee.Text()
-					if calleeName != "defineProps" {
-						break
+					switch calleeName {
+					case "withDefaults":
+						// TODO: report props destructuring?
+						if !nameIsIdentifier {
+							break
+						}
+						// TODO: align reporting with vue compiler
+						if len(call.Arguments.Nodes) != 2 || !ast.IsCallExpression(call.Arguments.Nodes[0]) || !ast.IsIdentifier(call.Arguments.Nodes[0].Expression()) || call.Arguments.Nodes[0].Expression().Text() != "defineProps" {
+							break
+						}
+						call = call.Arguments.Nodes[0].AsCallExpression()
+						callee = call.Expression
+						calleeName = callee.Text()
+						fallthrough
+					case "defineProps":
+						// TODO: report props destructuring?
+						if !nameIsIdentifier {
+							break
+						}
+						if propsVariableName != "" {
+							calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+							c.reportDiagnostic(utils.MoveTextRange(calleeLoc, innerStart), vue_diagnostics.Duplicate_X_0_call, "defineProps")
+							break
+						}
+						propsVariableName = name.Text()
+					case "defineEmits":
+						// TODO: can there be destructuring
+						if !nameIsIdentifier {
+							break
+						}
+						if emitsVariableName != "" {
+							calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+							c.reportDiagnostic(utils.MoveTextRange(calleeLoc, innerStart), vue_diagnostics.Duplicate_X_0_call, "defineEmits")
+							break
+						}
+						emitsVariableName = name.Text()
+					case "defineSlots":
+						// TODO: can there be destructuring
+						if !nameIsIdentifier {
+							break
+						}
+						if !c.options.Version.supportsDefineSlots() {
+							break
+						}
+						if slotsVariableName != "" {
+							calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+							c.reportDiagnostic(utils.MoveTextRange(calleeLoc, innerStart), vue_diagnostics.Duplicate_X_0_call, "defineSlots")
+							break
+						}
+						slotsVariableName = name.Text()
+					case "defineModel":
+						if !c.options.Version.supportsDefineModel() {
+							break
+						}
+						modelVariableName := c.newInternalVariable()
+						callLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, call.AsNode())
+						c.mapText(c.lastMappedPos, innerStart+callLoc.Pos())
+						c.lastMappedPos = innerStart + callLoc.Pos()
+						c.serviceText.WriteString("{} as unknown as typeof ")
+						c.serviceText.WriteString(modelVariableName)
+						c.processDefineModel(innerStart, call, callLoc, modelVariableName)
 					}
-					if propsVariableName != "" {
-						calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
-						c.reportDiagnostic(core.NewTextRange(innerStart + calleeLoc.Pos(), innerStart + calleeLoc.End()), vue_diagnostics.Duplicate_X_0_call, "defineProps")
-						break
-					}
-					propsVariableName = name.Text()
 				}
 			case ast.KindExpressionStatement:
 				expr := statement.AsExpressionStatement().Expression
@@ -346,200 +243,366 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 					break
 				}
 				calleeName := callee.Text()
-				if calleeName != "defineProps" {
-					break
-				}
-				if propsVariableName != "" {
-					calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
-					c.reportDiagnostic(core.NewTextRange(innerStart + calleeLoc.Pos(), innerStart + calleeLoc.End()), vue_diagnostics.Duplicate_X_0_call, "defineProps")
-					break
-				}
-				propsVariableName = "__VLS_Props"
-			case ast.KindFunctionDeclaration, ast.KindClassDeclaration, ast.KindEnumDeclaration:
-				if name := statement.Name(); name != nil {
-					bindingRanges = append(bindingRanges, name.Loc)
-					if ast.IsIdentifier(name) {
-						bindingNames = append(bindingNames, name.AsIdentifier().Text)
+				switch calleeName {
+				case "withDefaults", "defineProps":
+					if propsVariableName != "" {
+						calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+						c.reportDiagnostic(utils.MoveTextRange(calleeLoc, innerStart), vue_diagnostics.Duplicate_X_0_call, "defineProps")
+						break
 					}
+					propsVariableName = "__VLS_Props"
+					c.mapText(c.lastMappedPos, innerStart+statement.Pos())
+					c.serviceText.WriteString("\nconst __VLS_Props = ")
+					c.mapText(innerStart+statement.Pos(), innerStart+statement.End())
+					c.lastMappedPos = innerStart + statement.End()
+				case "defineEmits":
+					if emitsVariableName != "" {
+						calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+						c.reportDiagnostic(utils.MoveTextRange(calleeLoc, innerStart), vue_diagnostics.Duplicate_X_0_call, "defineEmits")
+						break
+					}
+					emitsVariableName = "__VLS_Emits"
+					c.mapText(c.lastMappedPos, innerStart+statement.Pos())
+					c.serviceText.WriteString("\nconst __VLS_Emits = ")
+					c.mapText(innerStart+statement.Pos(), innerStart+statement.End())
+					c.lastMappedPos = innerStart + statement.End()
+				case "defineSlots":
+					if !c.options.Version.supportsDefineSlots() {
+						break
+					}
+					if slotsVariableName != "" {
+						calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+						c.reportDiagnostic(utils.MoveTextRange(calleeLoc, innerStart), vue_diagnostics.Duplicate_X_0_call, "defineSlots")
+						break
+					}
+					slotsVariableName = "__VLS_Slots"
+					c.mapText(c.lastMappedPos, innerStart+statement.Pos())
+					c.serviceText.WriteString("\nconst __VLS_Slots = ")
+					c.mapText(innerStart+statement.Pos(), innerStart+statement.End())
+					c.lastMappedPos = innerStart + statement.End()
+				case "defineExpose":
+					if hasExpose {
+						calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+						c.reportDiagnostic(utils.MoveTextRange(calleeLoc, innerStart), vue_diagnostics.Duplicate_X_0_call, "defineExpose")
+						break
+					}
+					hasExpose = true
+					c.mapText(c.lastMappedPos, innerStart+statement.End())
+					c.lastMappedPos = innerStart + statement.End()
+					c.serviceText.WriteString("\nconst __VLS_Expose = __VLS_DefineExpose")
+					c.serviceText.WriteString(c.sourceText[innerStart + callee.End():innerStart+statement.End()])
+					c.serviceText.WriteString("\n")
+				case "defineModel":
+					modelVariableName := c.newInternalVariable()
+					callLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, call.AsNode())
+					c.mapText(c.lastMappedPos, innerStart+callLoc.Pos())
+					c.lastMappedPos = innerStart + callLoc.Pos()
+					c.processDefineModel(innerStart, call, callLoc, modelVariableName)
 				}
 			case ast.KindImportDeclaration:
-				// Skip type-only imports entirely (import type { ... })
-				if ast.IsTypeOnlyImportDeclaration(statement) {
-					continue
+				importRanges = append(importRanges, utils.MoveTextRange(statement.Loc, innerStart))
+				if c.lastMappedPos != statement.Pos() {
+					c.mapText(c.lastMappedPos, innerStart+statement.Pos())
 				}
-				importClause := statement.AsImportDeclaration().ImportClause
-				if importClause != nil {
-					// Default import (import Foo from ...)
-					if importClause.Name() != nil {
-						bindingRanges = append(bindingRanges, importClause.Name().Loc)
-						if ast.IsIdentifier(importClause.Name()) {
-							bindingNames = append(bindingNames, importClause.Name().AsIdentifier().Text)
-						}
-					}
-
-					namedBindings := importClause.AsImportClause().NamedBindings
-					if namedBindings != nil {
-						if ast.IsNamespaceImport(namedBindings) {
-							bindingRanges = append(bindingRanges, namedBindings.Name().Loc)
-							if ast.IsIdentifier(namedBindings.Name()) {
-								bindingNames = append(bindingNames, namedBindings.Name().AsIdentifier().Text)
-							}
-						} else {
-							// Named imports (import { Foo, Bar } from ...)
-							for _, element := range namedBindings.Elements() {
-								// Skip type-only import specifiers (import { type Foo } from ...)
-								if ast.IsPartOfTypeOnlyImportOrExportDeclaration(element) {
-									continue
-								}
-								bindingRanges = append(bindingRanges, element.Name().Loc)
-								if ast.IsIdentifier(element.Name()) {
-									bindingNames = append(bindingNames, element.Name().AsIdentifier().Text)
-								}
-							}
-						}
-					}
-				}
+				c.lastMappedPos = innerStart + statement.End()
 			}
 		}
-
-		// Populate setupConsts with binding names for template codegen
-		for _, name := range bindingNames {
-			c.setupConsts[name] = true
-		}
-
-		// Hoist type declarations first (emit without mappings to avoid position conflicts)
-		for _, typeRange := range typeRanges {
-			c.serviceText.WriteString(c.sourceText[typeRange.Pos():typeRange.End()])
-			c.serviceText.WriteByte('\n')
-		}
-
-		// Now emit the rest of the script, skipping type declarations
-		lastMappedPos := text.Loc.Pos()
-		for _, statement := range c.scriptSetupEl.Ast.Statements.Nodes {
-			stmtStart := innerStart + statement.Loc.Pos()
-			stmtEnd := innerStart + statement.Loc.End()
-
-			switch statement.Kind {
-			case ast.KindTypeAliasDeclaration, ast.KindInterfaceDeclaration:
-				// Skip - already hoisted
-				if lastMappedPos < stmtStart {
-					c.mapText(lastMappedPos, stmtStart)
-				}
-				lastMappedPos = stmtEnd
-			case ast.KindExpressionStatement:
-				// Handle standalone defineProps() - rewrite as const assignment
-				if propsVariableName == "__VLS_Props" {
-					expr := statement.AsExpressionStatement().Expression
-					if ast.IsCallExpression(expr) {
-						call := expr.AsCallExpression()
-						if ast.IsIdentifier(call.Expression) && call.Expression.AsIdentifier().Text == "defineProps" {
-							if lastMappedPos < stmtStart {
-								c.mapText(lastMappedPos, stmtStart)
-							}
-							c.serviceText.WriteString("const __VLS_Props = ")
-							c.mapText(stmtStart, stmtEnd)
-							lastMappedPos = stmtEnd
-						}
-					}
-				}
-			case ast.KindImportDeclaration:
-				if c.scriptEl != nil {
-					importRanges = append(importRanges, core.NewTextRange(stmtStart, stmtEnd))
-					if lastMappedPos < stmtStart {
-						c.mapText(lastMappedPos, stmtStart)
-					}
-					lastMappedPos = stmtEnd
-				}
-			}
-		}
-		c.mapText(lastMappedPos, text.Loc.End())
+		c.mapText(c.lastMappedPos, text.Loc.End())
 		c.serviceText.WriteByte('\n')
 
-		// Generate props type if defineProps was found with type argument
-		hasPropsType := false
-		hasRuntimeProps := false
-		if propsInfo != nil && propsInfo.typeArgRange != nil {
-			hasPropsType = true
-			c.serviceText.WriteString("type __VLS_Props = ")
-			// Map the type argument from source
-			c.mapText(innerStart+propsInfo.typeArgRange.Pos(), innerStart+propsInfo.typeArgRange.End())
-			c.serviceText.WriteString("\n")
-		} else if propsInfo != nil && propsInfo.runtimeArgRange != nil {
-			// For runtime defineProps, we need to create a props variable
-			// This will be typed by Vue's ExtractPropTypes
-			hasRuntimeProps = true
-			c.serviceText.WriteString("const __VLS_props = defineProps(")
-			c.mapText(innerStart+propsInfo.runtimeArgRange.Pos(), innerStart+propsInfo.runtimeArgRange.End())
-			c.serviceText.WriteString(");\n")
+		c.serviceText.WriteString("type __VLS_SetupExposed = import('vue').ShallowUnwrapRef<{\n")
+		for _, binding := range c.bindingRanges {
+			c.serviceText.WriteString(c.sourceText[binding.Pos():binding.End()])
+			c.serviceText.WriteString(": typeof ")
+			c.serviceText.WriteString(c.sourceText[binding.Pos():binding.End()])
+			c.serviceText.WriteRune('\n')
 		}
+		c.serviceText.WriteString("}>\n")
 
-		if len(bindingRanges) > 0 {
-			// Use Vue's ShallowUnwrapRef for automatic ref unwrapping in templates
-			c.serviceText.WriteString("type __VLS_SetupExposed = import('vue').ShallowUnwrapRef<{\n")
-			for _, binding := range bindingRanges {
-				c.serviceText.WriteString(c.sourceText[innerStart+binding.Pos() : innerStart+binding.End()])
-				c.serviceText.WriteString(": typeof ")
-				c.serviceText.WriteString(c.sourceText[innerStart+binding.Pos() : innerStart+binding.End()])
-				c.serviceText.WriteString(";\n")
+		hasPublicProps := false
+		startPublicProps := func() bool {
+			if hasPublicProps {
+				return false
 			}
-			c.serviceText.WriteString("}>;\n")
-		}
-
-		c.serviceText.WriteString("const __VLS_ctx = {\n")
-		c.serviceText.WriteString("...{} as import('vue').ComponentPublicInstance,\n")
-		if len(bindingRanges) > 0 {
-			c.serviceText.WriteString("...{} as __VLS_SetupExposed,\n")
-		}
-		// Add props to context
-		if hasPropsType {
-			c.serviceText.WriteString("...{} as unknown as __VLS_Props,\n")
-		} else if hasRuntimeProps {
-			c.serviceText.WriteString("...{} as typeof __VLS_props,\n")
+			c.serviceText.WriteString("\ntype __VLS_PublicProps = ")
+			hasPublicProps = true
+			return true
 		}
 		if propsVariableName != "" {
-			c.serviceText.WriteString("...{} as unknown as typeof ")
+			startPublicProps()
+			c.serviceText.WriteString("typeof ")
 			c.serviceText.WriteString(propsVariableName)
-			c.serviceText.WriteString(",\n")
 		}
+		for i, varName := range c.modelPropsVariableNames {
+			if i > 0 || !startPublicProps() {
+				c.serviceText.WriteString(" & ")
+			}
+			c.serviceText.WriteString(varName)
+		}
+
+		hasPublicEmits := false
+		startPublicEmits := func() bool {
+			if hasPublicEmits {
+				return false
+			}
+			c.serviceText.WriteString("\ntype __VLS_PublicEmits = ")
+			hasPublicEmits = true
+			return true
+		}
+		if emitsVariableName != "" {
+			startPublicEmits()
+			c.serviceText.WriteString("typeof ")
+			c.serviceText.WriteString(emitsVariableName)
+		}
+		for i, varName := range c.modelEmitsVariableNames {
+			if i > 0 || !startPublicEmits() {
+				c.serviceText.WriteString(" & ")
+			}
+			c.serviceText.WriteString("typeof ")
+			c.serviceText.WriteString(varName)
+		}
+		if hasPublicEmits {
+			c.serviceText.WriteString("\ntype __VLS_EmitProps = __VLS_EmitsToProps<__VLS_NormalizeEmits<__VLS_PublicEmits>>")
+		}
+
+		c.serviceText.WriteString("\nconst __VLS_Ctx = {\n")
 		if selfType != "" {
 			c.serviceText.WriteString("...{} as unknown as InstanceType<__VLS_PickNotAny<typeof ")
 			c.serviceText.WriteString(selfType)
-			c.serviceText.WriteString(", new () => {}>>,\n")
+			c.serviceText.WriteString(" extends new () => {} ? typeof")
+			c.serviceText.WriteString(selfType)
+			c.serviceText.WriteString(" : new () => {}, new () => {}>>,\n")
 		} else {
 			c.serviceText.WriteString("...{} as unknown as import('vue').ComponentPublicInstance,\n")
 		}
-		c.serviceText.WriteString("};\n")
-
-		// Add component/directive/intrinsic type declarations
-		if len(bindingRanges) > 0 {
-			c.serviceText.WriteString("type __VLS_LocalComponents = __VLS_SetupExposed;\n")
-		} else {
-			c.serviceText.WriteString("type __VLS_LocalComponents = {};\n")
+		c.serviceText.WriteString("...{} as unknown as __VLS_SetupExposed,\n")
+		if hasPublicProps {
+			c.serviceText.WriteString("...{} as unknown as __VLS_PublicProps,\n")
+			// TODO: other $s
+			c.serviceText.WriteString("...{} as unknown as { $props: __VLS_PublicProps },\n")
 		}
-		c.serviceText.WriteString("type __VLS_GlobalComponents = import('vue').GlobalComponents;\n")
-		c.serviceText.WriteString("let __VLS_components!: __VLS_LocalComponents & __VLS_GlobalComponents;\n")
-		c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
-		if len(bindingRanges) > 0 {
-			c.serviceText.WriteString("type __VLS_LocalDirectives = __VLS_SetupExposed;\n")
-		} else {
-			c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
+		if hasPublicEmits {
+			c.serviceText.WriteString("...{} as unknown as { $emit: __VLS_PublicEmits },\n")
 		}
-		c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
-		c.serviceText.WriteString("type __VLS_StyleScopedClasses = {};\n")
+		c.serviceText.WriteString("}\n")
 
 		generateTemplate(c.codegenCtx, templateEl)
 
-		if c.scriptEl != nil {
-			c.serviceText.WriteString("\n})()\n")
-			for _, loc := range importRanges {
-				c.mapText(loc.Pos(), loc.End())
-				c.serviceText.WriteString("\n")
+		if hasGeneric {
+			c.serviceText.WriteString("return {} as unknown as {\nprops: ")
+			// TODO: defineProps arg
+			if c.options.Version.hasPublicPropsType() {
+				c.serviceText.WriteString("import('vue').PublicProps")
+			} else {
+				c.serviceText.WriteString("import('vue').VNodeProps & import('vue').AllowedComponentProps & import('vue').ComponentCustomProps")
 			}
+			if hasPublicProps {
+				c.serviceText.WriteString(" & __VLS_PublicProps")
+			}
+			if hasPublicEmits {
+				c.serviceText.WriteString(" & __VLS_EmitProps")
+			}
+			// TODO: defineExpose
+			c.serviceText.WriteString("\nexpose: (exposed: {}) => void")
+			c.serviceText.WriteString("\nattrs: any")
+			c.serviceText.WriteString("\nslots: ")
+			if slotsVariableName == "" {
+				c.serviceText.WriteString("{}")
+			} else {
+				c.serviceText.WriteString(slotsVariableName)
+			}
+			c.serviceText.WriteString("\nemit: ")
+			if hasPublicEmits {
+				c.serviceText.WriteString("__VLS_PublicEmits")
+			} else {
+				c.serviceText.WriteString("{}")
+			}
+			c.serviceText.WriteString("\n}\n})()\n) => ({} as unknown as import('vue').VNode & { __ctx?: Awaited<typeof __VLS_GenericSetup> })\n")
+		} else {
+			c.serviceText.WriteString("\nconst __VLS_Base = __VLS_DefineComponent({\n")
+			// TODO: withDefaults
+			// TODO: defineProps(arg)
+			if hasPublicProps {
+				if c.options.Version.supportsTypeProps() {
+					c.serviceText.WriteString("__typeProps: {} as unknown as __VLS_PublicProps,\n")
+				} else {
+					c.serviceText.WriteString("props: {} as unknown as __VLS_TypePropsToOption<__VLS_PublicProps>,\n")
+				}
+			}
+			if hasPublicEmits {
+				if c.options.Version.supportsTypeEmits() {
+					c.serviceText.WriteString("__typeEmits: {} as unknown as __VLS_PublicEmits,\n")
+				} else {
+					c.serviceText.WriteString("emits: {} as unknown as __VLS_NormalizeEmits<__VLS_PublicEmits>,\n")
+				}
+			}
+			if hasExpose {
+				c.serviceText.WriteString("setup: () => __VLS_Expose,\n")
+			}
+			c.serviceText.WriteString("})\n")
+
+			if slotsVariableName == "" {
+				c.serviceText.WriteString("return __VLS_Base\n")
+			} else {
+				c.serviceText.WriteString("return {} as unknown as __VLS_WithSlots<typeof __VLS_Base, typeof ")
+				c.serviceText.WriteString(slotsVariableName)
+				c.serviceText.WriteString(">\n")
+			}
+
+			c.serviceText.WriteString("\n})()\n")
 		}
 
-		if c.scriptEl == nil {
-			c.serviceText.WriteString("export default {} as unknown as Awaited<typeof __VLS_Export>\n")
+		for _, loc := range importRanges {
+			c.mapText(loc.Pos(), loc.End())
+			c.serviceText.WriteString("\n")
+		}
+
+		c.serviceText.WriteString("\nexport default {} as unknown as Awaited<typeof __VLS_Export>\n")
+	} else {
+		c.serviceText.WriteString("\nconst __VLS_Ctx = {\n")
+		if selfType != "" {
+			c.serviceText.WriteString("...{} as unknown as InstanceType<__VLS_PickNotAny<typeof ")
+			c.serviceText.WriteString(selfType)
+			c.serviceText.WriteString(" extends new () => {} ? typeof ")
+			c.serviceText.WriteString(selfType)
+			c.serviceText.WriteString(" : new () => {}, new () => {}>>,\n")
+		} else {
+			c.serviceText.WriteString("...{} as unknown as import('vue').ComponentPublicInstance,\n")
+		}
+		c.serviceText.WriteString("}\n")
+		generateTemplate(c.codegenCtx, templateEl)
+	}
+}
+
+// TODO: reconcile with vuejs/core/packages/compiler-sfc/src/script/defineModel.ts
+func (c *scriptCodegenCtx) parseDefineModel(expr *ast.CallExpression) string {
+	var name string
+	if len(expr.Arguments.Nodes) >= 1 {
+		if ast.IsStringLiteral(expr.Arguments.Nodes[0]) {
+			name = expr.Arguments.Nodes[0].AsStringLiteral().Text
 		}
 	}
 
+	return name
+}
+
+func (c *scriptCodegenCtx) processDefineModel(innerStart int, call *ast.CallExpression, callLoc core.TextRange, modelVariableName string) {
+	modelName := c.parseDefineModel(call)
+	c.serviceText.WriteString("\nconst ")
+	c.serviceText.WriteString(modelVariableName)
+	c.serviceText.WriteString(" = ")
+	c.mapText(innerStart+callLoc.Pos(), innerStart+callLoc.End())
+	c.lastMappedPos = innerStart + callLoc.End()
+	modelTypesVariableName := c.newInternalVariable()
+	c.serviceText.WriteString("\ntype ")
+	c.serviceText.WriteString(modelTypesVariableName)
+	c.serviceText.WriteString(" = typeof ")
+	c.serviceText.WriteString(modelVariableName)
+	c.serviceText.WriteString(" extends import('vue').ModelRef<infer T, infer M extends string | number | symbol")
+	if c.options.Version.modelRefHasGetterAndSetter() {
+		c.serviceText.WriteString(", any, any")
+	}
+	c.serviceText.WriteString("> ? [T, M] : never\n")
+	modelPropTypeVariableName := c.newInternalVariable()
+	c.modelPropsVariableNames = append(c.modelPropsVariableNames, modelPropTypeVariableName)
+	c.serviceText.WriteString("type ")
+	c.serviceText.WriteString(modelPropTypeVariableName)
+	c.serviceText.WriteString(" = (undefined extends ")
+	c.serviceText.WriteString(modelTypesVariableName)
+	c.serviceText.WriteString("[0] ? { '")
+	// TODO: don't use quotes when not needed
+	// TODO: escape
+	camelizedModelName := "modelValue"
+	camelizedModelNameForModifiers := "model"
+	if modelName == "" {
+		c.serviceText.WriteString(camelizedModelName)
+	} else {
+		camelizedModelName = camelize(modelName, &c.serviceText)
+		camelizedModelNameForModifiers = camelizedModelName
+	}
+	c.serviceText.WriteString("'?: ")
+	c.serviceText.WriteString(modelTypesVariableName)
+	c.serviceText.WriteString("[0] } : { '")
+	c.serviceText.WriteString(camelizedModelName)
+	c.serviceText.WriteString("': ")
+	c.serviceText.WriteString(modelTypesVariableName)
+	c.serviceText.WriteString("[0] }) & { '")
+	c.serviceText.WriteString(camelizedModelNameForModifiers)
+	c.serviceText.WriteString("Modifiers'?: Partial<Record<")
+	c.serviceText.WriteString(modelTypesVariableName)
+	c.serviceText.WriteString("[1], true>> }\n")
+
+	modelEmitTypeVariableName := c.newInternalVariable()
+	c.modelEmitsVariableNames = append(c.modelEmitsVariableNames, modelEmitTypeVariableName)
+	c.serviceText.WriteString("const ")
+	c.serviceText.WriteString(modelEmitTypeVariableName)
+	// TODO: escape?
+	c.serviceText.WriteString(" = defineEmits<{ 'update:")
+	c.serviceText.WriteString(camelizedModelName)
+	c.serviceText.WriteString("': [value: ")
+	c.serviceText.WriteString(modelTypesVariableName)
+	c.serviceText.WriteString("[0]] }>()\n")
+
+	if c.seenDefineModels.Has(camelizedModelName) {
+		callee := call.Expression
+		calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+		c.reportDiagnostic(utils.MoveTextRange(calleeLoc, innerStart), vue_diagnostics.Duplicate_model_name_X_0, camelizedModelName)
+	} else {
+		c.seenDefineModels.Add(camelizedModelName)
+	}
+}
+
+func (c *scriptCodegenCtx) collectBindingRanges(innerStart int, node *ast.Node) {
+	switch node.Kind {
+	case ast.KindVariableStatement:
+		for _, d := range node.AsVariableStatement().DeclarationList.AsVariableDeclarationList().Declarations.Nodes {
+			decl := d.AsVariableDeclaration()
+			name := decl.Name()
+			var visitor ast.Visitor
+			// TODO: types, etc
+			// TODO: declare const?
+			visitor = func(n *ast.Node) bool {
+				if ast.IsIdentifier(n) {
+					c.bindingRanges = append(c.bindingRanges, utils.MoveTextRange(n.Loc, innerStart))
+				} else if ast.IsBindingPattern(n) {
+					for _, el := range n.AsBindingPattern().Elements.Nodes {
+						if ast.IsBindingElement(el) {
+							visitor(el.Name())
+						}
+					}
+				} else {
+					n.ForEachChild(visitor)
+				}
+				return false
+			}
+			visitor(name)
+		}
+	case ast.KindFunctionDeclaration, ast.KindClassDeclaration, ast.KindEnumDeclaration:
+		if name := node.Name(); name != nil {
+			c.bindingRanges = append(c.bindingRanges, utils.MoveTextRange(name.Loc, innerStart))
+		}
+	case ast.KindImportDeclaration:
+		importClause := node.AsImportDeclaration().ImportClause
+		if importClause == nil || importClause.IsTypeOnly() {
+			return
+		}
+
+		if importClause.Name() != nil {
+			c.bindingRanges = append(c.bindingRanges, utils.MoveTextRange(importClause.Name().Loc, innerStart))
+		}
+
+		namedBindings := importClause.AsImportClause().NamedBindings
+		if namedBindings != nil {
+			if ast.IsNamespaceImport(namedBindings) {
+				c.bindingRanges = append(c.bindingRanges, utils.MoveTextRange(namedBindings.Name().Loc, innerStart))
+			} else {
+				for _, element := range namedBindings.Elements() {
+					if !element.IsTypeOnly() {
+						c.bindingRanges = append(c.bindingRanges, utils.MoveTextRange(element.Name().Loc, innerStart))
+					}
+				}
+			}
+		}
+
+	}
 }

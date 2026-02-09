@@ -43,7 +43,7 @@ type Parser struct {
 	errors []ParseError
 }
 
-func Parse(source string) *vue_ast.RootNode {
+func Parse(source string) (*vue_ast.RootNode, []ParseError) {
 	p := Parser{
 		tokenizer:             NewTokenizer(source),
 		sourceText:            source,
@@ -53,7 +53,7 @@ func Parse(source string) *vue_ast.RootNode {
 	p.tokenizer.parser = &p
 	p.currentRoot = vue_ast.NewRootNode()
 	p.tokenizer.parse()
-	return p.currentRoot
+	return p.currentRoot, p.errors
 }
 
 func (p *Parser) emitError(msg string, pos int) {
@@ -143,7 +143,7 @@ func (p *Parser) onopentagend(end int) {
 	if p.currentOpenTag.Ns == vue_ast.NamespaceHTML && isPreTag(p.currentOpenTag.Tag) {
 		p.inPre++
 	}
-	if _, ok := VOID_TAGS[p.currentOpenTag.Tag]; ok {
+	if _, ok := VoidTags[p.currentOpenTag.Tag]; ok {
 		p.onCloseTag(p.currentOpenTag, end, false)
 	} else {
 		p.stack = slices.Insert(p.stack, 0, p.currentOpenTag)
@@ -156,7 +156,7 @@ func (p *Parser) onopentagend(end int) {
 
 func (p *Parser) onclosetag(start int, end int) {
 	name := p.sourceText[start:end]
-	if _, ok := VOID_TAGS[name]; !ok {
+	if _, ok := VoidTags[name]; !ok {
 		found := false
 		for i, e := range p.stack {
 			if strings.ToLower(e.Tag) == strings.ToLower(name) {
@@ -262,28 +262,11 @@ func (p *Parser) ondirarg(start int, end int) {
 		prop.Loc = prop.Loc.WithEnd(end)
 	} else {
 		prop := p.currentProp.AsDirective()
-		isStatic := arg[0] != '['
-		var argContent string
-		if isStatic {
-			argContent = arg
-		} else {
-			// Dynamic argument: [eventName] -> eventName
-			argContent = arg[1 : len(arg)-1]
+		prop.IsStatic = arg[0] != '['
+		if !prop.IsStatic {
+			arg = arg[1 : len(arg)-1]
 		}
-		prop.Arg = vue_ast.NewSimpleExpressionNode(
-			nil, // Static args don't need AST parsing
-			core.NewTextRange(start, end),
-			0, 0,
-		)
-		prop.ArgIsStatic = isStatic
-		// For dynamic args, we need to parse the expression
-		if !isStatic {
-			prop.Arg = vue_ast.NewSimpleExpressionNode(
-				ParseTsAst("("+argContent+")"),
-				core.NewTextRange(start+1, end-1), // Exclude brackets
-				1, 1,
-			)
-		}
+		prop.Arg = arg
 	}
 }
 
@@ -411,31 +394,36 @@ func (p *Parser) onattribend(quote QuoteType, end int) {
 						}
 					}
 				} else {
-					var prefixLen int
-					var suffixLen int
-					var expressionText string
 					switch prop.Name {
 					case "slot":
-						// v-slot expression is the slot props binding, e.g., "{ item }" in #default="{ item }"
-						// We parse it as arrow function parameters: ({ item }) => {}
-						prefixLen = 1
-						suffixLen = len(") => {}")
-						expressionText = "(" + p.currentAttrValue + ") => {}"
+						prop.Expression = vue_ast.NewSimpleExpressionNode(
+							ParseTsAst("("+p.currentAttrValue+")=>{}"),
+							core.NewTextRange(p.currentAttrStartIndex, p.currentAttrEndIndex),
+							1,
+							5,
+						)
 					case "on":
-						// For v-on, we parse the expression to determine if it's compound or simple
-						// Compound: inline statement like "count++" -> wrap in arrow function
-						// Simple: function reference like "handleClick" -> use directly
-						prefixLen = 1
-						suffixLen = 1
-						expressionText = "(" + p.currentAttrValue + ")"
+						// https://github.com/vuejs/core/issues/14287
+						prefixLen := 1
+						suffixLen := 1
+						ast := ParseTsAst("(" + p.currentAttrValue + ")")
+						// TODO: report syntactic diagnostics
+						diagnostics := ast.Diagnostics()
+						if len(diagnostics) != 0 {
+							prefixLen = 0
+							suffixLen = 0
+							ast = ParseTsAst(p.currentAttrValue)
+							if len(ast.Diagnostics()) != 0 {
+								// TODO: report
+								_ = diagnostics
+							}
+						}
+						prop.Expression = vue_ast.NewSimpleExpressionNode(ast, core.NewTextRange(p.currentAttrStartIndex, p.currentAttrEndIndex), prefixLen, suffixLen)
 					default:
-						prefixLen = 1
-						suffixLen = 1
-						expressionText = "(" + p.currentAttrValue + ")"
+						prop.Expression = vue_ast.NewSimpleExpressionNode(ParseTsAst(
+							"("+p.currentAttrValue+")",
+						), core.NewTextRange(p.currentAttrStartIndex, p.currentAttrEndIndex), 1, 1)
 					}
-					prop.Expression = vue_ast.NewSimpleExpressionNode(ParseTsAst(
-						expressionText,
-					), core.NewTextRange(p.currentAttrStartIndex, p.currentAttrEndIndex), prefixLen, suffixLen)
 				}
 				// if currentProp.name == "for" {
 				// 	currentProp.forParseResult = parseForExpression(currentProp.exp)
@@ -670,12 +658,7 @@ func (p *Parser) onCloseTag(el *vue_ast.ElementNode, end int, isImplied bool) {
 		el.Loc = el.Loc.WithEnd(p.lookAhead(end, CharCodeGt) + 1)
 	}
 
-	// Check if this is an SFC root element (script, template, style)
-	// When onCloseTag is called, the element has already been removed from the stack,
-	// so for root SFC elements the stack should be empty (len == 0)
-	isSFCRootElement := p.tokenizer.mode == ParseModeSfc && len(p.stack) == 0 &&
-		(el.Tag == "script" || el.Tag == "template" || el.Tag == "style")
-	if isSFCRootElement {
+	if p.tokenizer.inSFCRoot() {
 		if len(el.Children) > 0 {
 			el.InnerLoc = el.InnerLoc.WithEnd(el.Children[len(el.Children)-1].Loc.End())
 			if el.Tag == "script" {
@@ -979,7 +962,8 @@ func condense(s string) string {
 
 // copied from https://github.com/vuejs/core/blob/44ee43848fe8563c914be6cf731157e360d4e801/packages/shared/src/domTagConfig.ts
 var (
-	HTML_TAGS = map[string]struct{}{
+	NativeTags = map[string]struct{}{
+		// html tags
 		"html":       struct{}{},
 		"body":       struct{}{},
 		"base":       struct{}{},
@@ -1091,9 +1075,8 @@ var (
 		"blockquote": struct{}{},
 		"iframe":     struct{}{},
 		"tfoot":      struct{}{},
-	}
 
-	SVG_TAGS = map[string]struct{}{
+		// svg tags
 		"svg":                 struct{}{},
 		"animate":             struct{}{},
 		"animateMotion":       struct{}{},
@@ -1159,14 +1142,13 @@ var (
 		"symbol":              struct{}{},
 		"text":                struct{}{},
 		"textPath":            struct{}{},
-		"title":               struct{}{},
-		"tspan":               struct{}{},
-		"unknown":             struct{}{},
-		"use":                 struct{}{},
-		"view":                struct{}{},
-	}
+		// "title":               struct{}{},
+		"tspan":   struct{}{},
+		"unknown": struct{}{},
+		"use":     struct{}{},
+		"view":    struct{}{},
 
-	MATH_TAGS = map[string]struct{}{
+		// math tags
 		"annotation":     struct{}{},
 		"annotation-xml": struct{}{},
 		"maction":        struct{}{},
@@ -1214,7 +1196,7 @@ var (
 		"semantics":      struct{}{},
 	}
 
-	VOID_TAGS = map[string]struct{}{
+	VoidTags = map[string]struct{}{
 		"area":   struct{}{},
 		"base":   struct{}{},
 		"br":     struct{}{},
@@ -1244,6 +1226,9 @@ func ParseTsAst(source string) *ast.SourceFile {
 		},
 		JSDocParsingMode: ast.JSDocParsingModeParseAll,
 	}, source, core.ScriptKindTSX) // TODO: script kind
-	binder.BindSourceFile(file)
+	// TODO: JSDiagnostics?
+	if len(file.Diagnostics()) == 0 {
+		binder.BindSourceFile(file)
+	}
 	return file
 }

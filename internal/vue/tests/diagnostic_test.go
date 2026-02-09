@@ -5,23 +5,34 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/fourslash"
 	"github.com/microsoft/typescript-go/shim/lsp/lsproto"
-	"github.com/microsoft/typescript-go/shim/testutil"
 )
 
 func TestDiagnostic(t *testing.T) {
-	t.Parallel()
-
-	defer testutil.RecoverAndFail(t, "Panic on fourslash test")
-	content := withVueNodeModules(t, `// @filename: file.vue
+	runFourslashTest(t, `// @filename: file.vue
 <script lang="ts" setup>
 	const [|foo|]: string = 5
-</script>`)
-	f, done := fourslash.NewFourslash(t, nil, content)
-	defer done()
-	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-		{
-			Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
-			Message: "Type 'number' is not assignable to type 'string'.",
-		},
+</script>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
+				Message: "Type 'number' is not assignable to type 'string'.",
+			},
+		})
+	})
+}
+
+func TestVueSyntaxError(t *testing.T) {
+	// TODO:
+	t.Skip()
+	runFourslashTest(t, `// @filename: file.vue
+<template>
+	<div>
+</template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
+				Message: "Type 'number' is not assignable to type 'string'.",
+			},
+		})
 	})
 }
