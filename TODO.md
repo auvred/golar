@@ -4,11 +4,17 @@ This document contains the roadmap and detailed tasks for Golar development. Tas
 
 ## Current Status
 
-Golar can now parse Vue SFCs and generate TypeScript service code for type checking. Basic directives (`v-if`, `v-for`, `v-on`) are supported. Element type checking with `__VLS_asFunctionalElement1` is now implemented. Component resolution distinguishes between imported and global components.
+Golar can now parse Vue SFCs and generate TypeScript service code for type checking. Basic directives (`v-if`, `v-for`, `v-on`) are supported. Element type checking with `__VLS_asFunctionalElement1` is now implemented. Component resolution distinguishes between imported and global components. All execution modes (regular `-p`, incremental, build `-b`, LSP) now properly handle `.vue` files.
 
-### Recent Fixes (Jan 2025)
+### Recent Fixes (Feb 2025)
+- **Fixed build mode (`-b`) panics**: Build mode's orchestrator now wraps compiler host with Golar callbacks, preventing `ScriptKindUnknown` panics for `.vue` files
+- **Fixed empty `<script setup>` panic**: Components with `<script setup lang="ts"></script>` (no content) no longer crash the codegen
+- **Fixed template-only component codegen**: Components with no `<script>` tag now properly generate `__VLS_SetupExposed` type for template component resolution
+- **Extension registration**: `.vue` extension is now unconditionally registered in `init()`, ensuring the file loader includes `.vue` files in the program regardless of execution mode
+
+### Previous Fixes (Jan 2025)
 - Fixed parser `InnerLoc` bug for SFC root elements
-- Fixed entity handling (`&&`) in attribute values causing parse failures  
+- Fixed entity handling (`&&`) in attribute values causing parse failures
 - Fixed ASI issues with interpolation expressions followed by blocks
 - **Aligned variable naming**: Changed `__VLS_Ctx` to `__VLS_ctx` (lowercase) to match Volar
 - **Updated SetupExposed type**: Now uses `import('vue').ShallowUnwrapRef<{...}>` instead of custom `__VLS_UnwrapRef`
@@ -16,7 +22,7 @@ Golar can now parse Vue SFCs and generate TypeScript service code for type check
 - **Added element type checking**: `__VLS_asFunctionalElement1(__VLS_intrinsics.TAG, ...)` calls for HTML elements
 - **Added typed slot props**: `v-slot="{ item }: { item: Type }"` syntax now works via Volar's callback pattern
 - **Fixed event handler typing**: Compound event handlers now have `[any]` type annotation for `$event`
-- **Distinguished imported vs global components**: 
+- **Distinguished imported vs global components**:
   - Imported components use direct reference: `const __VLS_0 = ComponentName || ComponentName`
   - Global components use type lookup: `let __VLS_0!: __VLS_WithComponent<...>`
 - **Fixed setupConsts tracking**: Use AST `Text` field instead of position slicing to avoid trivia
@@ -228,7 +234,7 @@ Create snapshot/baseline tests similar to TypeScript's test infrastructure:
 
 ```bash
 # Build Golar
-go build -o golar/tsgo ./typescript-go/cmd/tsgo
+go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
 
 # Run Vue tests
 go test ./internal/vue/tests/... -v
@@ -243,8 +249,11 @@ go run ./cmd/test_codegen path/to/file.vue --service
 # Generate Volar service code for comparison
 cd .reference && bun run generate_volar.ts path/to/file.vue
 
-# Type-check a Vue project with Golar
+# Type-check a Vue project with Golar (regular mode)
 ./golar/tsgo -p path/to/tsconfig.json --noEmit
+
+# Type-check a Vue project with Golar (build mode for monorepos)
+./golar/tsgo -b --noEmit
 
 # Compare error counts
 ./golar/tsgo -p tsconfig.json --noEmit 2>&1 | grep -c "error TS"

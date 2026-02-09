@@ -53,7 +53,7 @@ cd ..
 
 ```bash
 # Build the golar binary (tsgo with Golar extensions)
-go build -o golar ./typescript-go/cmd/tsgo
+go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
 
 # Or use hereby in typescript-go directory
 cd typescript-go
@@ -169,7 +169,7 @@ Vue-specific tests use the fourslash harness (see `internal/vue/tests/`). These 
 2. Implement parser/codegen changes
 3. Update mappings if needed
 4. Run tests: `go test ./internal/vue/tests/...`
-5. Verify end-to-end with `go build -o golar ./typescript-go/cmd/tsgo`
+5. Verify end-to-end with `go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo`
 
 ## Important Constraints
 
@@ -272,6 +272,12 @@ Event handlers require special handling based on expression type:
 
 14. **Component emit type inference requires defineEmits** - The `__VLS_NormalizeComponentEvent` type has constraints like `Event extends keyof Emits`. If a component doesn't declare emits via `defineEmits`, the emit type is `{}`, making `keyof Emits` equal to `never`, which causes TS2344 constraint errors. Full emit type inference requires capturing `defineEmits` return value and threading it through the generated code.
 
+15. **Build mode (`-b`) requires Golar host wrapping** - typescript-go has multiple execution modes (regular `-p`, incremental, build `-b`, watch `-w`, LSP). Each creates its own `compiler.CompilerHost`. The build mode in `internal/execute/build/orchestrator.go` creates a host via `compiler.NewCachedFSCompilerHost()` which must be wrapped with `sys.GetGolarCallbacks().WrapCompilerHost(host)` — otherwise `.vue` files hit `compiler/host.go:GetSourceFile()` which calls `core.GetScriptKindFromFileName()` returning `ScriptKindUnknown` and panics. Always verify new execution modes wrap the compiler host.
+
+16. **Empty `<script setup>` and template-only components** - Vue SFCs can have: (a) empty `<script setup lang="ts"></script>` with no content, or (b) no `<script>` tag at all (template-only). The parser produces 0 children and nil `Ast` for empty script blocks. Codegen must handle these cases: skip text mapping and statement iteration when children is empty, and always generate `__VLS_SetupExposed` type (even as empty `{}` for template-only components) since template codegen references it for component resolution.
+
+17. **Extension registration must be unconditional** - `tspath.RegisterSupportedExtension(".vue")` must be called in an unconditional `init()` function in `internal/golar/golar.go`. Without this, the file loader in `filesparser.go` rejects `.vue` files because they're not in `supportedExtensions`. The second `init()` that checks `GOLAR_PLUGIN` env is for the plugin system and is separate.
+
 ## Volar Comparison Testing
 
 The `.reference/` directory (gitignored) contains the official Volar/Vue language-tools for comparing Golar's codegen output against the reference implementation.
@@ -330,7 +336,7 @@ go run ./cmd/test_codegen <vue-file> --service
 
 ```bash
 # Build Golar
-go build -o golar/tsgo ./typescript-go/cmd/tsgo
+go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
 
 # Run Golar on a project
 ./golar/tsgo -p <tsconfig-path> --noEmit

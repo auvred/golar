@@ -41,11 +41,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 	c.serviceText.WriteString("import { defineComponent as __VLS_DefineComponent } from 'vue'\n")
 
 	var selfType string
-	if c.scriptEl != nil {
-		if len(c.scriptEl.Children) != 1 {
-			panic("TODO: len of <script> children != 1")
-		}
-
+	if c.scriptEl != nil && len(c.scriptEl.Children) == 1 {
 		innerStart := c.scriptEl.InnerLoc.Pos()
 		text := c.scriptEl.Children[0].AsText()
 
@@ -98,10 +94,6 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 	}
 
 	if c.scriptSetupEl != nil {
-		if len(c.scriptSetupEl.Children) != 1 {
-			panic("TODO: len of <script setup> children != 1")
-		}
-
 		c.serviceText.WriteString("const __VLS_Export = ")
 
 		hasGeneric := false
@@ -131,12 +123,15 @@ __VLS_GenericSetup = `)
 			}
 		}
 
-		text := c.scriptSetupEl.Children[0].AsText()
-
 		c.serviceText.WriteString("(async () => {\n")
 		innerStart := c.scriptSetupEl.InnerLoc.Pos()
 
-		c.lastMappedPos = text.Loc.Pos()
+		var hasText bool
+		if len(c.scriptSetupEl.Children) == 1 {
+			text := c.scriptSetupEl.Children[0].AsText()
+			c.lastMappedPos = text.Loc.Pos()
+			hasText = true
+		}
 
 		var (
 			propsVariableName string
@@ -150,7 +145,11 @@ __VLS_GenericSetup = `)
 		// TODO: $emits, $props, emitstoprops
 
 		importRanges := []core.TextRange{}
-		for _, statement := range c.scriptSetupEl.Ast.Statements.Nodes {
+		var statements []*ast.Node
+		if c.scriptSetupEl.Ast != nil {
+			statements = c.scriptSetupEl.Ast.Statements.Nodes
+		}
+		for _, statement := range statements {
 			c.collectBindingRanges(innerStart, statement)
 			switch statement.Kind {
 			case ast.KindVariableStatement:
@@ -307,7 +306,10 @@ __VLS_GenericSetup = `)
 				c.lastMappedPos = innerStart + statement.End()
 			}
 		}
-		c.mapText(c.lastMappedPos, text.Loc.End())
+		if hasText {
+			text := c.scriptSetupEl.Children[0].AsText()
+			c.mapText(c.lastMappedPos, text.Loc.End())
+		}
 		c.serviceText.WriteByte('\n')
 
 		c.serviceText.WriteString("type __VLS_SetupExposed = import('vue').ShallowUnwrapRef<{\n")
@@ -459,6 +461,7 @@ __VLS_GenericSetup = `)
 
 		c.serviceText.WriteString("\nexport default {} as unknown as Awaited<typeof __VLS_Export>\n")
 	} else {
+		c.serviceText.WriteString("type __VLS_SetupExposed = {}\n")
 		c.serviceText.WriteString("\nconst __VLS_Ctx = {\n")
 		if selfType != "" {
 			c.serviceText.WriteString("...{} as unknown as InstanceType<__VLS_PickNotAny<typeof ")
