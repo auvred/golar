@@ -1,7 +1,9 @@
 package vue_codegen
 
 import (
-	vue_ast "github.com/auvred/golar/internal/vue/ast"
+	"github.com/auvred/golar/internal/utils"
+	"github.com/auvred/golar/internal/vue/ast"
+	"github.com/auvred/golar/internal/vue/diagnostics"
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/core"
 )
@@ -140,7 +142,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		templateEl:    templateEl,
 	}
 
-	c.serviceText.WriteString("import { defineComponent as __VLS_DefineComponent } from 'vue'\n")
+	c.serviceText.WriteString("import { defineComponent as __VLS_DefineComponent, defineProps } from 'vue'\n")
 
 	// Handle template-only components (no <script> or <script setup>)
 	if c.scriptEl == nil && c.scriptSetupEl == nil {
@@ -151,6 +153,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
 		c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
 		c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
+		generateTemplate(c.codegenCtx, templateEl)
 		return
 	}
 
@@ -242,6 +245,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 				c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
 				c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
 				c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
+				generateTemplate(c.codegenCtx, templateEl)
 				c.serviceText.WriteString("return (await import('vue')).defineComponent({});\n")
 				c.serviceText.WriteString("})();\n")
 			} else {
@@ -253,6 +257,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 				c.serviceText.WriteString("let __VLS_intrinsics!: import('vue/jsx-runtime').JSX.IntrinsicElements;\n")
 				c.serviceText.WriteString("type __VLS_LocalDirectives = {};\n")
 				c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
+				generateTemplate(c.codegenCtx, templateEl)
 			}
 			return
 		}
@@ -267,7 +272,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 			c.serviceText.WriteString("export default {} as typeof __VLS_Export\n")
 			c.serviceText.WriteString("const __VLS_Export = await (async () => {\n")
 		} else {
-			// TODO
+			// Script setup only - define __VLS_Export without async IIFE
 			c.serviceText.WriteString("const __VLS_Export = __VLS_DefineComponent({})\n")
 		}
 		innerStart := c.scriptSetupEl.InnerLoc.Pos()
@@ -277,6 +282,10 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 
 		// Collect type declarations to hoist and other statement ranges
 		typeRanges := []core.TextRange{}
+		var propsVariableName string
+
+		// TODO: report nested compiler macros (vue compiler errors on them)
+
 		bindingRanges := []core.TextRange{}
 		bindingNames := []string{} // Store actual identifier names for setupConsts
 		importRanges := []core.TextRange{}
@@ -287,9 +296,12 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 				// Collect type/interface declarations for hoisting
 				typeRanges = append(typeRanges, core.NewTextRange(innerStart+statement.Loc.Pos(), innerStart+statement.Loc.End()))
 			case ast.KindVariableStatement:
-				for _, decl := range statement.AsVariableStatement().DeclarationList.AsVariableDeclarationList().Declarations.Nodes {
-					name := decl.AsVariableDeclaration().Name()
+				for _, d := range statement.AsVariableStatement().DeclarationList.AsVariableDeclarationList().Declarations.Nodes {
+					decl := d.AsVariableDeclaration()
+					name := decl.Name()
 					var visitor ast.Visitor
+					// TODO: binding pattern?
+					// TODO: declare const?
 					visitor = func(n *ast.Node) bool {
 						if ast.IsIdentifier(n) {
 							bindingRanges = append(bindingRanges, n.Loc)
@@ -298,7 +310,51 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 						return n.ForEachChild(visitor)
 					}
 					visitor(name)
+
+					// TODO: report props destructuring?
+					if !ast.IsIdentifier(name) {
+						break
+					}
+					if decl.Initializer == nil || !ast.IsCallExpression(decl.Initializer) {
+						break
+					}
+
+					call := decl.Initializer.AsCallExpression()
+					callee := call.Expression
+					if !ast.IsIdentifier(callee) {
+						break
+					}
+					calleeName := callee.Text()
+					if calleeName != "defineProps" {
+						break
+					}
+					if propsVariableName != "" {
+						calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+						c.reportDiagnostic(core.NewTextRange(innerStart + calleeLoc.Pos(), innerStart + calleeLoc.End()), vue_diagnostics.Duplicate_X_0_call, "defineProps")
+						break
+					}
+					propsVariableName = name.Text()
 				}
+			case ast.KindExpressionStatement:
+				expr := statement.AsExpressionStatement().Expression
+				if !ast.IsCallExpression(expr) {
+					break
+				}
+				call := expr.AsCallExpression()
+				callee := call.Expression
+				if !ast.IsIdentifier(callee) {
+					break
+				}
+				calleeName := callee.Text()
+				if calleeName != "defineProps" {
+					break
+				}
+				if propsVariableName != "" {
+					calleeLoc := utils.TrimNodeTextRange(c.scriptSetupEl.Ast, callee)
+					c.reportDiagnostic(core.NewTextRange(innerStart + calleeLoc.Pos(), innerStart + calleeLoc.End()), vue_diagnostics.Duplicate_X_0_call, "defineProps")
+					break
+				}
+				propsVariableName = "__VLS_Props"
 			case ast.KindFunctionDeclaration, ast.KindClassDeclaration, ast.KindEnumDeclaration:
 				if name := statement.Name(); name != nil {
 					bindingRanges = append(bindingRanges, name.Loc)
@@ -370,6 +426,22 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 					c.mapText(lastMappedPos, stmtStart)
 				}
 				lastMappedPos = stmtEnd
+			case ast.KindExpressionStatement:
+				// Handle standalone defineProps() - rewrite as const assignment
+				if propsVariableName == "__VLS_Props" {
+					expr := statement.AsExpressionStatement().Expression
+					if ast.IsCallExpression(expr) {
+						call := expr.AsCallExpression()
+						if ast.IsIdentifier(call.Expression) && call.Expression.AsIdentifier().Text == "defineProps" {
+							if lastMappedPos < stmtStart {
+								c.mapText(lastMappedPos, stmtStart)
+							}
+							c.serviceText.WriteString("const __VLS_Props = ")
+							c.mapText(stmtStart, stmtEnd)
+							lastMappedPos = stmtEnd
+						}
+					}
+				}
 			case ast.KindImportDeclaration:
 				if c.scriptEl != nil {
 					importRanges = append(importRanges, core.NewTextRange(stmtStart, stmtEnd))
@@ -424,6 +496,11 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		} else if hasRuntimeProps {
 			c.serviceText.WriteString("...{} as typeof __VLS_props,\n")
 		}
+		if propsVariableName != "" {
+			c.serviceText.WriteString("...{} as unknown as typeof ")
+			c.serviceText.WriteString(propsVariableName)
+			c.serviceText.WriteString(",\n")
+		}
 		if selfType != "" {
 			c.serviceText.WriteString("...{} as unknown as InstanceType<__VLS_PickNotAny<typeof ")
 			c.serviceText.WriteString(selfType)
@@ -450,11 +527,7 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 		c.serviceText.WriteString("let __VLS_directives!: __VLS_LocalDirectives & import('vue').GlobalDirectives;\n")
 		c.serviceText.WriteString("type __VLS_StyleScopedClasses = {};\n")
 
-		// When both scripts exist, generate template INSIDE the async IIFE
-		// so it can access __VLS_ctx, __VLS_intrinsics, etc.
-		if c.scriptEl != nil && c.templateEl != nil {
-			generateTemplate(c.codegenCtx, c.templateEl)
-		}
+		generateTemplate(c.codegenCtx, templateEl)
 
 		if c.scriptEl != nil {
 			c.serviceText.WriteString("\n})()\n")
@@ -468,4 +541,5 @@ func generateScript(base *codegenCtx, scriptSetupEl *vue_ast.ElementNode, script
 			c.serviceText.WriteString("export default {} as unknown as Awaited<typeof __VLS_Export>\n")
 		}
 	}
+
 }

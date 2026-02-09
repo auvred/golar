@@ -81,41 +81,9 @@ RootChild:
 		}
 	}
 
-	// When both <script> and <script setup> exist, the template code needs to be inside
-	// the async IIFE so it can access __VLS_ctx, __VLS_intrinsics, etc.
-	// Pass templateEl to generateScript so it can include template at the right scope.
-	hasBothScripts := scriptEl != nil && scriptSetupEl != nil
-
 	{
 		c := newCodegenCtx(root, sourceText)
-		if hasBothScripts {
-			// Template is generated inside script's async IIFE
-			generateScript(&c, scriptSetupEl, scriptEl, templateEl)
-		} else {
-			generateScript(&c, scriptSetupEl, scriptEl, nil)
-		}
-		newMappingsStart := len(ctx.mappings)
-		ctx.mappings = append(ctx.mappings, c.mappings...)
-		for i := newMappingsStart; i < len(ctx.mappings); i++ {
-			ctx.mappings[i].ServiceOffset += ctx.serviceText.Len()
-		}
-		ctx.serviceText.Write([]byte(c.serviceText.String()))
-		ctx.diagnostics = append(ctx.diagnostics, c.diagnostics...)
-		// Copy setupConsts to the outer context for template codegen
-		for k, v := range c.setupConsts {
-			ctx.setupConsts[k] = v
-		}
-	}
-
-	// Only generate template separately if we don't have both script blocks
-	if !hasBothScripts {
-		c := newCodegenCtx(root, sourceText)
-		// Copy setupConsts from the script context (collected during generateScript)
-		// This is needed for template codegen to know which component names are local imports
-		for k, v := range ctx.setupConsts {
-			c.setupConsts[k] = v
-		}
-		generateTemplate(&c, templateEl)
+		generateScript(&c, scriptSetupEl, scriptEl, templateEl)
 		newMappingsStart := len(ctx.mappings)
 		ctx.mappings = append(ctx.mappings, c.mappings...)
 		for i := newMappingsStart; i < len(ctx.mappings); i++ {
