@@ -1,0 +1,158 @@
+{
+    "name": "golar",
+    "displayName": "Golar - Vue Language Server",
+    "publisher": "nonfx",
+    "author": "nonfx",
+    "description": "Fast, native Vue language server powered by typescript-go.",
+    "icon": "logo.png",
+    "private": true,
+    "version": "0.0.1",
+    "type": "commonjs",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/auvred/golar"
+    },
+    "engines": {
+        "vscode": "^1.106.0"
+    },
+    "capabilities": {
+        "untrustedWorkspaces": {
+            "supported": false
+        }
+    },
+    "activationEvents": [
+        "onLanguage:javascript",
+        "onLanguage:javascriptreact",
+        "onLanguage:typescript",
+        "onLanguage:typescriptreact",
+        "onLanguage:vue"
+    ],
+    "contributes": {
+        "configuration": [
+            {
+                "title": "Golar",
+                "properties": {
+                    "golar.trace.server": {
+                        "type": "string",
+                        "enum": [
+                            "off",
+                            "messages",
+                            "verbose"
+                        ],
+                        "default": "verbose",
+                        "description": "Trace Golar server communication.",
+                        "tags": [
+                            "experimental"
+                        ]
+                    },
+                    "golar.pprofDir": {
+                        "type": "string",
+                        "description": "Directory to write pprof profiles to.",
+                        "tags": [
+                            "experimental"
+                        ]
+                    },
+                    "golar.tsdk": {
+                        "type": "string",
+                        "description": "Path to the golar binary directory. If not specified, the extension will use the bundled binary.",
+                        "tags": [
+                            "experimental"
+                        ]
+                    },
+                    "golar.goMemLimit": {
+                        "type": "string",
+                        "description": "Set GOMEMLIMIT for the language server (e.g., '2048MiB', '4GiB'). See https://pkg.go.dev/runtime#hdr-Environment_Variables for more information.",
+                        "pattern": "^[0-9]+(([KMGT]i)?B)?$",
+                        "patternErrorMessage": "Must be a valid memory limit (e.g., '2048MiB', '4GiB').",
+                        "tags": [
+                            "experimental"
+                        ]
+                    }
+                }
+            }
+        ],
+        "languages": [
+            {
+                "id": "vue",
+                "extensions": [".vue"],
+                "configuration": "./languages/vue-language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "vue",
+                "scopeName": "text.html.vue",
+                "path": "./syntaxes/vue.tmLanguage.json",
+                "embeddedLanguages": {
+                    "source.ts": "typescript",
+                    "source.tsx": "typescriptreact",
+                    "source.js": "javascript",
+                    "source.js.jsx": "javascriptreact",
+                    "source.css": "css",
+                    "source.css.scss": "scss",
+                    "source.css.less": "less",
+                    "source.json": "json",
+                    "source.yaml": "yaml",
+                    "text.pug": "jade",
+                    "text.html.markdown": "markdown",
+                    "text.html.derivative": "html"
+                }
+            },
+            {
+                "scopeName": "vue.directives",
+                "path": "./syntaxes/vue-directives.json",
+                "injectTo": ["text.html.vue", "text.html.markdown", "text.html.derivative", "text.pug"]
+            },
+            {
+                "scopeName": "vue.interpolations",
+                "path": "./syntaxes/vue-interpolations.json",
+                "injectTo": ["text.html.vue", "text.html.markdown", "text.html.derivative", "text.pug"]
+            }
+        ],
+        "commands": [
+            {
+                "command": "golar.restart",
+                "title": "Restart Language Server",
+                "enablement": "golar.serverRunning",
+                "category": "Golar"
+            },
+            {
+                "command": "golar.output.focus",
+                "title": "Show Output",
+                "enablement": "golar.serverRunning",
+                "category": "Golar"
+            },
+            {
+                "command": "golar.lsp-trace.focus",
+                "title": "Show LSP Trace",
+                "enablement": "golar.serverRunning",
+                "category": "Golar"
+            },
+            {
+                "command": "golar.reportIssue",
+                "title": "Report Issue",
+                "enablement": "golar.serverRunning",
+                "category": "Golar"
+            },
+            {
+                "title": "Show References of CodeLens",
+                "command": "golar.codeLens.showLocations",
+                "enablement": "false"
+            }
+        ]
+    },
+    "main": "./dist/extension.bundle.js",
+    "scripts": {
+        "build": "tsc",
+        "watch": "tsc --watch",
+        "bundle": "esbuild src/extension.ts --bundle --external:vscode --platform=node --format=cjs --outfile=dist/extension.bundle.js --minify"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^10.0.0-next.18"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.106.1",
+        "@vscode/vsce": "^3.7.1",
+        "esbuild": "^0.27.1"
+    }
+}

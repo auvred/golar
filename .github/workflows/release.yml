@@ -1,0 +1,212 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag (e.g. v0.0.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            binary: tsgo
+            asset: tsgo-linux-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            binary: tsgo
+            asset: tsgo-linux-arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            binary: tsgo
+            asset: tsgo-darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            binary: tsgo
+            asset: tsgo-darwin-arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            binary: tsgo.exe
+            asset: tsgo-windows-amd64.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Apply patches
+        run: |
+          cd thirdparty/typescript-go
+          git am --3way --no-gpg-sign ../../patches/*.patch
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: go build -o ${{ matrix.binary }} ./thirdparty/typescript-go/cmd/tsgo
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.binary }}
+
+  build-vsix:
+    needs: build-binaries
+    strategy:
+      matrix:
+        include:
+          - platform: darwin-arm64
+            binary_artifact: tsgo-darwin-arm64
+            binary_name: tsgo
+          - platform: darwin-x64
+            binary_artifact: tsgo-darwin-amd64
+            binary_name: tsgo
+          - platform: linux-x64
+            binary_artifact: tsgo-linux-amd64
+            binary_name: tsgo
+          - platform: linux-arm64
+            binary_artifact: tsgo-linux-arm64
+            binary_name: tsgo
+          - platform: win32-x64
+            binary_artifact: tsgo-windows-amd64.exe
+            binary_name: tsgo.exe
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.binary_artifact }}
+          path: editors/vscode/lib
+
+      - name: Make binary executable
+        run: chmod +x editors/vscode/lib/${{ matrix.binary_name }} 2>/dev/null || true
+
+      - name: Install extension dependencies
+        working-directory: editors/vscode
+        run: npm install
+
+      - name: Bundle extension
+        working-directory: editors/vscode
+        run: npx esbuild src/extension.ts --bundle --external:vscode --platform=node --format=cjs --outfile=dist/extension.bundle.js --minify
+
+      - name: Package VSIX
+        working-directory: editors/vscode
+        run: npx @vscode/vsce package --no-dependencies --target ${{ matrix.platform }}
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-${{ matrix.platform }}
+          path: editors/vscode/*.vsix
+
+  # Collects all artifacts into a single downloadable archive
+  collect-artifacts:
+    needs: [build-binaries, build-vsix]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all VSIX artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          path: vsix
+          merge-multiple: true
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tsgo-*
+          path: binaries
+          merge-multiple: true
+
+      - name: Upload combined artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: golar-all-platforms
+          path: |
+            vsix/
+            binaries/
+
+  release:
+    needs: [build-binaries, build-vsix]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all VSIX artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          path: release
+          merge-multiple: true
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tsgo-*
+          path: release
+          merge-multiple: true
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Golar ${{ steps.tag.outputs.tag }}
+          draft: true
+          files: release/*
+          body: |
+            ## Install
+
+            Download the `.vsix` for your platform and run:
+
+            ```bash
+            code --install-extension golar-<version>@<platform>.vsix
+            ```
+
+            Or download the standalone `tsgo` binary and point the extension at it via `golar.tsdk`.
+
+            ### Platform map
+
+            | Platform | VSIX | Binary |
+            |----------|------|--------|
+            | macOS Apple Silicon | `@darwin-arm64` | `tsgo-darwin-arm64` |
+            | macOS Intel | `@darwin-x64` | `tsgo-darwin-amd64` |
+            | Linux x64 | `@linux-x64` | `tsgo-linux-amd64` |
+            | Linux ARM64 | `@linux-arm64` | `tsgo-linux-arm64` |
+            | Windows x64 | `@win32-x64` | `tsgo-windows-amd64.exe` |

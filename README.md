@@ -70,7 +70,6 @@ Golar is under active development. Below is the current status of Vue SFC featur
 
 ### Known Limitations
 
-- Diagnostics that cannot be mapped back to source positions are clamped to file bounds (may show at wrong location)
 - Some complex template expressions may not have accurate source mappings
 - Some edge cases in `v-bind:class` with complex expressions may produce false positives
 
@@ -84,16 +83,43 @@ Golar is under active development. Below is the current status of Vue SFC featur
 * Ember
 * Type-aware linting + custom JS plugins?
 
-## Building
+## Quick Start
+
+### VS Code Extension (recommended)
 
 ```bash
+# Build everything and produce a .vsix
+./scripts/build-extension.sh
+
+# Install the extension
+code --install-extension editors/vscode/golar-*.vsix
+```
+
+Then disable **Vue - Official (Volar)** and **TypeScript Language Features** to avoid conflicts.
+
+See [editors/vscode/README.md](./editors/vscode/README.md) for detailed setup.
+
+### CLI Type Checking
+
+```bash
+# Build the golar binary
+go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
+
+# Type-check a Vue project
+./golar/tsgo -p path/to/tsconfig.json --noEmit
+```
+
+### Building from Source
+
+```bash
+# Clone and set up submodules
 git submodule update --init
+cd thirdparty/typescript-go
+git am --3way --no-gpg-sign ../../patches/*.patch
+cd ../..
 
-cd typescript-go
-git am --3way --no-gpg-sign ../patches/*.patch
-cd ..
-
-go build -o golar ./typescript-go/cmd/tsgo
+# Build
+go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
 ```
 
 ## Testing

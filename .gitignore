@@ -1,2 +1,5 @@
 node_modules/
 .reference/
+editors/vscode/lib/
+editors/vscode/dist/
+*.vsix

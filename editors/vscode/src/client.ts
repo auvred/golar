@@ -1,0 +1,201 @@
+import * as vscode from "vscode";
+import {
+    DocumentUri,
+    LanguageClient,
+    LanguageClientOptions,
+    Location,
+    NotebookDocumentFilter,
+    Position,
+    ServerOptions,
+    TextDocumentFilter,
+    TransportKind,
+} from "vscode-languageclient/node";
+import {
+    ExeInfo,
+    getExe,
+    jsTsLanguageModes,
+} from "./util";
+import { getLanguageForUri } from "./util";
+
+const codeLensShowLocationsCommandName = "golar.codeLens.showLocations";
+
+export class Client {
+    private outputChannel: vscode.LogOutputChannel;
+    private traceOutputChannel: vscode.LogOutputChannel;
+    private clientOptions: LanguageClientOptions;
+    private client?: LanguageClient;
+    private exe: ExeInfo | undefined;
+    private onStartedCallbacks: Set<() => void> = new Set();
+
+    constructor(outputChannel: vscode.LogOutputChannel, traceOutputChannel: vscode.LogOutputChannel) {
+        this.outputChannel = outputChannel;
+        this.traceOutputChannel = traceOutputChannel;
+        this.clientOptions = {
+            documentSelector: [
+                ...jsTsLanguageModes.map(language => ({ scheme: "file", language })),
+                ...jsTsLanguageModes.map(language => ({ scheme: "untitled", language })),
+            ],
+            outputChannel: this.outputChannel,
+            traceOutputChannel: this.traceOutputChannel,
+            initializationOptions: {
+                codeLensShowLocationsCommandName,
+            },
+            diagnosticPullOptions: {
+                onChange: true,
+                onSave: true,
+                onTabs: true,
+                match(documentSelector, resource) {
+                    const language = getLanguageForUri(resource);
+
+                    for (const selector of documentSelector) {
+                        if (typeof selector === "string") {
+                            if (selector === language) {
+                                return true;
+                            }
+                            continue;
+                        }
+                        if (NotebookDocumentFilter.is(selector)) {
+                            continue;
+                        }
+                        if (TextDocumentFilter.is(selector)) {
+                            if (selector.language !== undefined && selector.language !== language) {
+                                continue;
+                            }
+
+                            if (selector.scheme !== undefined && selector.scheme !== resource.scheme) {
+                                continue;
+                            }
+
+                            if (selector.pattern !== undefined) {
+                                throw new Error("Not implemented");
+                            }
+
+                            return true;
+                        }
+                    }
+
+                    return false;
+                },
+            },
+        };
+    }
+
+    async initialize(context: vscode.ExtensionContext): Promise<vscode.Disposable> {
+        const exe = await getExe(context);
+        return this.start(context, exe);
+    }
+
+    async start(context: vscode.ExtensionContext, exe: { path: string; version: string; }): Promise<vscode.Disposable> {
+        this.exe = exe;
+        this.outputChannel.appendLine(`Resolved to ${this.exe.path}`);
+
+        const config = vscode.workspace.getConfiguration("golar");
+        const pprofDir = config.get<string>("pprofDir");
+        const pprofArgs = pprofDir ? ["--pprofDir", pprofDir] : [];
+
+        const goMemLimit = config.get<string>("goMemLimit");
+        const env = { ...process.env };
+        if (goMemLimit) {
+            if (/^[0-9]+(([KMGT]i)?B)?$/.test(goMemLimit)) {
+                this.outputChannel.appendLine(`Setting GOMEMLIMIT=${goMemLimit}`);
+                env.GOMEMLIMIT = goMemLimit;
+            }
+            else {
+                this.outputChannel.error(`Invalid goMemLimit: ${goMemLimit}. Must be a valid memory limit (e.g., '2048MiB', '4GiB'). Not overriding GOMEMLIMIT.`);
+            }
+        }
+
+        const serverOptions: ServerOptions = {
+            run: {
+                command: this.exe.path,
+                args: ["--lsp", ...pprofArgs],
+                transport: TransportKind.stdio,
+                options: { env },
+            },
+            debug: {
+                command: this.exe.path,
+                args: ["--lsp", ...pprofArgs],
+                transport: TransportKind.stdio,
+                options: { env },
+            },
+        };
+
+        this.client = new LanguageClient(
+            "golar",
+            "golar-lsp",
+            serverOptions,
+            this.clientOptions,
+        );
+
+        this.outputChannel.appendLine(`Starting language server...`);
+        await this.client.start();
+        vscode.commands.executeCommand("setContext", "golar.serverRunning", true);
+        this.onStartedCallbacks.forEach(callback => callback());
+
+        if (this.traceOutputChannel.logLevel !== vscode.LogLevel.Trace) {
+            this.traceOutputChannel.appendLine(`To see LSP trace output, set this output's log level to "Trace" (gear icon next to the dropdown).`);
+        }
+
+        const codeLensLocationsCommand = vscode.commands.registerCommand(codeLensShowLocationsCommandName, (...args: unknown[]) => {
+            if (args.length !== 3) {
+                throw new Error("Unexpected number of arguments.");
+            }
+
+            const lspUri = args[0] as DocumentUri;
+            const lspPosition = args[1] as Position;
+            const lspLocations = args[2] as Location[];
+
+            const editorUri = vscode.Uri.parse(lspUri);
+            const editorPosition = new vscode.Position(lspPosition.line, lspPosition.character);
+            const editorLocations = lspLocations.map(loc =>
+                new vscode.Location(
+                    vscode.Uri.parse(loc.uri),
+                    new vscode.Range(
+                        new vscode.Position(loc.range.start.line, loc.range.start.character),
+                        new vscode.Position(loc.range.end.line, loc.range.end.character),
+                    ),
+                )
+            );
+
+            vscode.commands.executeCommand("editor.action.showReferences", editorUri, editorPosition, editorLocations);
+        });
+
+        return new vscode.Disposable(() => {
+            this.client?.stop();
+            codeLensLocationsCommand.dispose();
+            vscode.commands.executeCommand("setContext", "golar.serverRunning", false);
+        });
+    }
+
+    getCurrentExe(): { path: string; version: string; } | undefined {
+        return this.exe;
+    }
+
+    onStarted(callback: () => void): vscode.Disposable {
+        if (this.exe) {
+            callback();
+            return new vscode.Disposable(() => {});
+        }
+
+        this.onStartedCallbacks.add(callback);
+        return new vscode.Disposable(() => {
+            this.onStartedCallbacks.delete(callback);
+        });
+    }
+
+    async restart(context: vscode.ExtensionContext): Promise<vscode.Disposable> {
+        if (!this.client) {
+            return Promise.reject(new Error("Language client is not initialized"));
+        }
+        const exe = await getExe(context);
+        if (exe.path !== this.exe?.path) {
+            this.outputChannel.appendLine(`Executable path changed from ${this.exe?.path} to ${exe.path}`);
+            this.outputChannel.appendLine(`Restarting language server with new executable...`);
+            return this.start(context, exe);
+        }
+
+        this.outputChannel.appendLine(`Restarting language server...`);
+        this.client.restart();
+        return new vscode.Disposable(() => {});
+    }
+}

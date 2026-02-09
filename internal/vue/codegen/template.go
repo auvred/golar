@@ -17,6 +17,19 @@ import (
 
 var commentDirectiveRe = regexp.MustCompile(`^\s*@vue-([-a-z]+)(.*)$`)
 
+// jsGlobals is the set of JavaScript global identifiers that Vue allows in template
+// expressions without prefixing with the component context.
+// Matches Vue core's globalsAllowList: https://github.com/vuejs/core/blob/main/packages/shared/src/globalsAllowList.ts
+var jsGlobals = collections.NewSetFromItems(
+	"Infinity", "undefined", "NaN",
+	"isFinite", "isNaN", "parseFloat", "parseInt",
+	"decodeURI", "decodeURIComponent", "encodeURI", "encodeURIComponent",
+	"Math", "Number", "Date", "Array", "Object", "Boolean", "String",
+	"RegExp", "Map", "Set", "JSON", "Intl", "BigInt",
+	"console", "Error", "Symbol",
+	"globalThis",
+)
+
 type templateCodegenCtx struct {
 	*codegenCtx
 	scopes             []collections.Set[string]
@@ -57,6 +70,10 @@ func (c *templateCodegenCtx) declareScopeVar(name string) {
 
 func (c *templateCodegenCtx) shouldPrefixIdentifier(identifier *ast.Node) bool {
 	name := identifier.Text()
+
+	if jsGlobals.Has(name) {
+		return false
+	}
 
 	for location := identifier; location != nil; location = location.Parent {
 		locals := location.Locals()

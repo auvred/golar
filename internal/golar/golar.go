@@ -395,9 +395,10 @@ func adjustDiagnostic(file *ast.SourceFile, diagnostic *ast.Diagnostic) *ast.Dia
 		return diagnostic
 	}
 
-	diagnostic.SetLocation(core.NewTextRange(0, 0))
-
-	return diagnostic
+	// No source mapping found — this diagnostic refers to generated code
+	// with no corresponding source position. Suppress it rather than
+	// showing it at a meaningless location.
+	return nil
 }
 
 func wrapDiagnostics(file *ast.SourceFile, diagnostics []*ast.Diagnostic, collectUnused bool) []*ast.Diagnostic {
@@ -411,7 +412,9 @@ func wrapDiagnostics(file *ast.SourceFile, diagnostics []*ast.Diagnostic, collec
 		if directiveMap.IsServiceRangeIgnored(diag.Loc()) {
 			continue
 		}
-		res = append(res, adjustDiagnostic(file, diag))
+		if adjusted := adjustDiagnostic(file, diag); adjusted != nil {
+			res = append(res, adjusted)
+		}
 	}
 	if !collectUnused {
 		return res

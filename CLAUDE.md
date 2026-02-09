@@ -25,8 +25,16 @@ golar/
 │   ├── mapping/             # Source-to-service position mapping
 │   ├── utils/               # Utilities (overlay VFS, etc.)
 │   └── collections/         # Collection utilities
+├── editors/
+│   └── vscode/              # VS Code extension
+│       ├── src/             # Extension TypeScript source
+│       ├── syntaxes/        # TextMate grammars (Vue, directive/interpolation injections)
+│       ├── languages/       # Language configuration (brackets, folding)
+│       ├── lib/             # Built binary (gitignored)
+│       └── dist/            # Bundled JS (gitignored)
+├── scripts/                 # Build scripts (build-extension.sh)
 ├── shim/                    # Generated wrappers around typescript-go internals
-├── typescript-go/           # Submodule: native TypeScript compiler/LSP
+├── thirdparty/typescript-go/ # Submodule: native TypeScript compiler/LSP
 │   ├── internal/            # TypeScript compiler internals (ast, checker, binder, etc.)
 │   ├── cmd/tsgo/           # Main CLI entry point
 │   └── _submodules/TypeScript/  # Reference TypeScript implementation
@@ -55,9 +63,13 @@ cd ..
 # Build the golar binary (tsgo with Golar extensions)
 go build -o golar/tsgo ./thirdparty/typescript-go/cmd/tsgo
 
-# Or use hereby in typescript-go directory
-cd typescript-go
-npx hereby build
+# Build the VS Code extension (binary + JS bundle + .vsix)
+./scripts/build-extension.sh
+
+# Or build components individually:
+go build -o editors/vscode/lib/tsgo ./thirdparty/typescript-go/cmd/tsgo
+cd editors/vscode && bun install && bun run bundle
+npx @vscode/vsce package --no-dependencies
 ```
 
 ### Testing
@@ -317,6 +329,43 @@ The goal is 1:1 compatibility with Volar's codegen output. Key differences to ad
 - Type helper structure and imports
 - Element/component intrinsic handling
 - Expression wrapping style
+
+## VS Code Extension
+
+The extension lives in `editors/vscode/` and launches the golar `tsgo` binary as an LSP server.
+
+### Key Files
+
+- `src/extension.ts` - Entry point, always activates (no gating)
+- `src/client.ts` - Creates `LanguageClient` with `golar` config namespace
+- `src/util.ts` - Binary resolution (`golar.tsdk` setting or bundled `lib/tsgo`), language mode registration (includes `vue`)
+- `syntaxes/vue.tmLanguage.json` - Main Vue TextMate grammar (from Volar)
+- `syntaxes/vue-directives.json` - Injection grammar for Vue directives (`:attr`, `@event`, `v-*`) inside HTML tags
+- `syntaxes/vue-interpolations.json` - Injection grammar for `{{ }}` in template content
+- `languages/vue-language-configuration.json` - Bracket matching, auto-close, folding rules
+
+### How Syntax Highlighting Works
+
+The main Vue grammar handles `<script>`, `<style>`, and `<template>` blocks. Inside `<template>`, child elements are handled by VS Code's built-in HTML grammar (`text.html.derivative`). Two **injection grammars** add Vue-specific highlighting on top:
+
+1. **vue-directives.json** injects into `meta.tag` scopes, adding Vue directive attribute patterns (`:loading="expr"`, `@click="handler"`) with embedded TypeScript expression highlighting via `source.ts#expression`
+2. **vue-interpolations.json** injects into `text.html.derivative`, adding `{{ expr }}` interpolation highlighting
+
+Without these injection grammars, directive expressions appear as plain strings.
+
+### Building the Extension
+
+```bash
+# Full build (binary + bundle + .vsix)
+./scripts/build-extension.sh
+
+# Quick rebuild after code changes
+go build -o editors/vscode/lib/tsgo ./thirdparty/typescript-go/cmd/tsgo
+cd editors/vscode && rm -f golar-*.vsix && npx @vscode/vsce package --no-dependencies
+
+# Install
+code --install-extension editors/vscode/golar-*.vsix --force
+```
 
 ## Debug Tools
 

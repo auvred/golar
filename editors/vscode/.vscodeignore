@@ -1,0 +1,9 @@
+**/*
+!dist/extension.bundle.js
+!lib/**
+!syntaxes/**
+!languages/**
+!logo.png
+!package.json
+!README.md
+!LICENSE

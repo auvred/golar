@@ -21,6 +21,21 @@ func TestDiagnostic(t *testing.T) {
 	})
 }
 
+func TestGlobalsNotPrefixed(t *testing.T) {
+	runFourslashTest(t, `// @filename: file.vue
+<script lang="ts" setup>
+	const loading = true
+</script>
+
+<template>
+	<div :title="loading ? 'yes' : undefined"></div>
+	<div :title="loading ? String(42) : undefined"></div>
+	<div :title="loading ? JSON.stringify({}) : undefined"></div>
+</template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
+	})
+}
+
 func TestVueSyntaxError(t *testing.T) {
 	// TODO:
 	t.Skip()
