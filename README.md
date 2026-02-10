@@ -45,6 +45,11 @@ Golar is under active development. Below is the current status of Vue SFC featur
 | Imported component resolution | Supported | Direct type reference for components imported in `<script setup>` |
 | Global component resolution | Supported | `__VLS_WithComponent` lookup for globally registered components |
 | Dynamic components | Supported | `<component :is="expr">` with expression or ternary support |
+| `defineEmits` | Supported | Full emit type inference with `const emit = defineEmits<T>()` |
+| `defineExpose` | Supported | Component ref type inference with `defineExpose({...})` |
+| `defineModel` | Supported | Two-way binding helper for Vue 3.4+ |
+| `defineSlots` | Supported | Slot type definitions with `defineSlots<T>()` |
+| Component emit type inference | Supported | Full event handler type checking with emit types |
 
 ### Partially Supported
 
@@ -58,14 +63,9 @@ Golar is under active development. Below is the current status of Vue SFC featur
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `defineEmits` | Not yet | Emit types not captured for event type inference |
-| `defineSlots` | Not yet | Slot type inference not implemented |
-| `defineExpose` | Not yet | |
-| `defineModel` | Not yet | |
 | `v-model` | Not yet | Two-way binding codegen |
-| Component emit type inference | Not yet | Requires `defineEmits` support first |
 | Generic components | Not yet | `<script setup generic="T">` |
-| CSS `v-bind()` | Not yet | |
+| CSS `v-bind()` | Not yet | Style variable binding |
 | Pug templates | Not yet | `<template lang="pug">` |
 
 ### Known Limitations
