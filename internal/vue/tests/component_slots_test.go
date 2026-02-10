@@ -86,16 +86,16 @@ func TestComponentSlots(t *testing.T) {
 		if version == vue_3_2 {
 			return
 		}
-		f.VerifyQuickInfoAt(t, "1", `const msg: "hello"`, "")
-		f.VerifyQuickInfoAt(t, "2", `const msg: "hello"`, "")
-		f.VerifyQuickInfoAt(t, "3", `const msg: "hello"`, "")
-		f.VerifyQuickInfoAt(t, "4", `const msg: "foo"`, "")
-		f.VerifyQuickInfoAt(t, "5", `const msg: "foo"`, "")
-		f.VerifyQuickInfoAt(t, "6", `const msg: "hello"`, "")
-		f.VerifyQuickInfoAt(t, "7", `const msg: "hello"`, "")
-		f.VerifyQuickInfoAt(t, "8", `const msg: "hello"`, "")
-		f.VerifyQuickInfoAt(t, "9", `const msg: "foo"`, "")
-		f.VerifyQuickInfoAt(t, "10", `const msg: "foo"`, "")
+		f.VerifyQuickInfoAt(t, "1", `const msg: any`, "")
+		f.VerifyQuickInfoAt(t, "2", `const msg: any`, "")
+		f.VerifyQuickInfoAt(t, "3", `const msg: any`, "")
+		f.VerifyQuickInfoAt(t, "4", `const msg: any`, "")
+		f.VerifyQuickInfoAt(t, "5", `const msg: any`, "")
+		f.VerifyQuickInfoAt(t, "6", `const msg: any`, "")
+		f.VerifyQuickInfoAt(t, "7", `const msg: any`, "")
+		f.VerifyQuickInfoAt(t, "8", `const msg: any`, "")
+		f.VerifyQuickInfoAt(t, "9", `const msg: any`, "")
+		f.VerifyQuickInfoAt(t, "10", `const msg: any`, "")
 		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
 			{
 				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](1_000_008)},
@@ -112,6 +112,56 @@ func TestComponentSlots(t *testing.T) {
 			{
 				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](1_000_008)},
 				Message: "Slot does not belong to the parent component.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 6, Character: 5}, End: lsproto.Position{Line: 6, Character: 8}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 9, Character: 5}, End: lsproto.Position{Line: 9, Character: 8}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 12, Character: 5}, End: lsproto.Position{Line: 12, Character: 8}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 15, Character: 5}, End: lsproto.Position{Line: 15, Character: 8}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 18, Character: 5}, End: lsproto.Position{Line: 18, Character: 8}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 22, Character: 6}, End: lsproto.Position{Line: 22, Character: 9}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 27, Character: 6}, End: lsproto.Position{Line: 27, Character: 9}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 32, Character: 6}, End: lsproto.Position{Line: 32, Character: 9}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 37, Character: 6}, End: lsproto.Position{Line: 37, Character: 9}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
+			},
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 42, Character: 6}, End: lsproto.Position{Line: 42, Character: 9}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2448)},
+				Message: "Block-scoped variable 'msg' used before its declaration.",
 			},
 		})
 	})

@@ -1,6 +1,8 @@
 package vue_codegen
 
 import (
+	_ "embed"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -14,206 +16,21 @@ import (
 
 // TODO: relative to cwd or executable location, so vue import works
 // const GlobalTypesPath = utils.GolarVirtualScheme + "vue-global-types.d.ts"
-const GlobalTypesPath = "/" + "vue-global-types.d.ts"
-const globalTypesReference = `/// <reference types="` + GlobalTypesPath + `" />
+const TemplateHelpersPath = "/" + "template-helpers.d.ts"
+const PropsFallbackPath = "/" + "props-fallback.d.ts"
+const globalTypesReference = `/// <reference types="` + TemplateHelpersPath + `" />
+/// <reference types="` + PropsFallbackPath + `" />
 `
 
-// Iterable requires es2015.iterable
-const GlobalTypes = `/// <reference lib="es2015" />
-export {}
+//go:embed types/template-helpers.d.ts
+var TemplateHelpers string
 
-declare global {
-	function __VLS_vFor<T>(source: T): T extends number
-		? [number, number]
-		: T extends string
-			? [string, number]
-			: T extends any[]
-				? [T[number], number]
-				: T extends Iterable<infer V>
-					? [V, number]
-					: [T[keyof T], ` + "`${keyof T & string}`" + `, number]
-
-	type __VLS_FunctionalComponent<T> = (props: (T extends { $props: infer Props } ? Props : {}), ctx?: any) => {
-		__ctx?: {
-			attrs?: any;
-			slots?: T extends { $slots: infer Slots } ? Slots : Record<string, any>;
-			emit?: T extends { $emit: infer Emit } ? Emit : {};
-			props?: typeof props;
-			expose?: (exposed: T) => void;
-		};
-	};
-
-	function __VLS_AsFunctionalComponent<T, K = T extends new (...args: any) => any ? InstanceType<T> : unknown>(t: T, instance?: K):
-		T extends new (...args: any) => any
-			? __VLS_FunctionalComponent<K>
-			: T extends () => any
-				? (props: {}, ctx?: any) => ReturnType<T>
-				: T extends (...args: any) => any
-					? T
-					: __VLS_FunctionalComponent<{}>;
-
-	// TODO: pre 3.5?
-	type __VLS_GlobalComponents = import('vue').GlobalComponents
-
-	type __VLS_ExtractComponentType<N0 extends string, LocalComponents, Self, N1 extends string, N2 extends string = N1, N3 extends string = N1> =
-		N1 extends keyof LocalComponents
-			? { [K in N0]: LocalComponents[N1] }
-			: N2 extends keyof LocalComponents
-				? { [K in N0]: LocalComponents[N2] }
-				: N3 extends keyof LocalComponents
-					? { [K in N0]: LocalComponents[N3] }
-					: Self extends object
-						? { [K in N0]: Self }
-						: N1 extends keyof __VLS_GlobalComponents
-							? { [K in N0]: __VLS_GlobalComponents[N1] }
-							: N2 extends keyof __VLS_GlobalComponents
-								? { [K in N0]: __VLS_GlobalComponents[N2] }
-								: N3 extends keyof __VLS_GlobalComponents
-									? { [K in N0]: __VLS_GlobalComponents[N3] }
-									: {};
-
-	type __VLS_IsAny<T> = 0 extends 1 & T ? true : false;
-
-	type __VLS_PickNotAny<A, B> = __VLS_IsAny<A> extends true ? B : A;
-
-	type __VLS_SpreadMerge<A, B> = Omit<A, keyof B> & B;
-
-	type __VLS_PrettifyGlobal<T> = (T extends any ? { [K in keyof T]: T[K] } : { [K in keyof T as K]: T[K] }) & {};
-
-	type __VLS_UnionToIntersection<U> = (U extends unknown ? (arg: U) => unknown : never) extends ((arg: infer P) => unknown)
-		? P
-		: never;
-
-	type __VLS_OverloadUnionInner<T, U = unknown> = U & T extends (...args: infer A) => infer R
-		? U extends T
-			? never
-			: __VLS_OverloadUnionInner<T, Pick<T, keyof T> & U & ((...args: A) => R)> | ((...args: A) => R)
-		: never;
-	type __VLS_OverloadUnion<T> = Exclude<
-		__VLS_OverloadUnionInner<(() => never) & T>,
-		T extends () => never ? never : () => never
-	>;
-
-	type __VLS_ConstructorOverloads<T> = __VLS_OverloadUnion<T> extends infer F
-		? F extends (event: infer E, ...args: infer A) => any
-			? { [K in E & string]: (...args: A) => void }
-			: never
-		: never;
-
-	type __VLS_IsFunction<T, K> = K extends keyof T
-		? __VLS_IsAny<T[K]> extends false
-			? unknown extends T[K]
-				? false
-				: true
-			: false
-		: false;
-
-	type __VLS_NormalizeComponentEvent<
-		Props,
-		Emits,
-		onEvent extends keyof Props,
-		Event extends keyof Emits,
-		CamelizedEvent extends keyof Emits,
-	> = __VLS_IsFunction<Props, onEvent> extends true
-		? Props
-		: __VLS_IsFunction<Emits, Event> extends true
-			? { [K in onEvent]?: Emits[Event] }
-			: __VLS_IsFunction<Emits, CamelizedEvent> extends true
-				? { [K in onEvent]?: Emits[CamelizedEvent] }
-				: Props;
-
-	type __VLS_FunctionalComponentProps<T, K> = '__ctx' extends keyof __VLS_PickNotAny<K, {}>
-		? K extends { __ctx?: { props?: infer P } }
-			? NonNullable<P>
-			: never
-		: T extends (props: infer P, ...args: any) => any
-			? P
-			: {};
-
-	type __VLS_FunctionalComponentCtx<T, K> = __VLS_PickNotAny<
-		'__ctx' extends keyof __VLS_PickNotAny<K, {}>
-			? K extends { __ctx?: infer Ctx }
-				? NonNullable<Ctx>
-				: never
-			: any,
-		T extends (props: any, ctx: infer Ctx) => any
-			? Ctx
-			: any
-	>;
-
-	type __VLS_NormalizeEmits<T> = __VLS_PrettifyGlobal<
-		__VLS_UnionToIntersection<
-			__VLS_ConstructorOverloads<T> & {
-				[K in keyof T]: T[K] extends any[] ? { (...args: T[K]): void } : never
-			}
-		>
-	>;
-
-	type __VLS_ShortEmitsToObject<E> = E extends Record<string, any[]>
-		? { [K in keyof E]: (...args: E[K]) => any }
-		: E;
-
-	type __VLS_ResolveEmits<
-		Comp,
-		Emits,
-		TypeEmits = Comp extends { __typeEmits?: infer T }
-			? unknown extends T
-				? {}
-				: __VLS_ShortEmitsToObject<T>
-			: {},
-		NormalizedEmits = __VLS_NormalizeEmits<Emits> extends infer E
-			? string extends keyof E
-				? {}
-				: E
-			: never,
-	> = __VLS_SpreadMerge<NormalizedEmits, TypeEmits>;
-
-	type __VLS_WithSlots<T, S> = T extends abstract new (...args: any) => any
-		? T & {
-				new(...args: ConstructorParameters<T>): {
-					$slots: S;
-				}
-			}
-		: any;
-
-	function __VLS_vSlot<S, D extends S>(slot: S, decl?: D): D extends (...args: infer P) => any ? P : any[];
-
-	type __VLS_TypePropsToOption<T> = {
-		[K in keyof T]-?: {} extends Pick<T, K>
-			? { type: import('vue').PropType<Required<T>[K]> }
-			: { type: import('vue').PropType<T[K]>, required: true }
-	};
-
-	type __VLS_EmitsToProps<T> = __VLS_PrettifyGlobal<
-		{
-			[K in string & keyof T as ` + "`" + `on${Capitalize<K>}` + "`" + `]?: (
-				...args: T[K] extends (...args: infer P) => any ? P : T[K] extends null ? any[] : never
-			) => any;
-		}
-	>;
-
-	function __VLS_DefineExpose<Exposed extends Record<string, any> = Record<string, any>>(exposed?: Exposed): Exposed;
-
-	function __VLS_AsFunctionalElement<T>(tag: T, endTag?: T): (attrs: T) => void;
-}
-
-// pre 3.5 shims
-// https://github.com/vuejs/core/pull/3399
-declare module 'vue' {
-	export interface GlobalComponents {}
-	export interface GlobalDirectives {}
-}
-`
+//go:embed types/props-fallback.d.ts
+var PropsFallback string
 
 func Codegen(sourceText string, root *vue_ast.RootNode, options VueOptions) (string, []mapping.Mapping, []mapping.IgnoreDirectiveMapping, []mapping.ExpectErrorDirectiveMapping, []*ast.Diagnostic) {
 	ctx := newCodegenCtx(root, sourceText, options)
 	ctx.serviceText.WriteString(globalTypesReference)
-	ctx.serviceText.WriteString("declare const __VLS_Intrinsics: ")
-	if options.Version.hasJsxRuntimeTypes() {
-		ctx.serviceText.WriteString("import('vue/jsx-runtime').JSX.IntrinsicElements\n")
-	} else {
-		ctx.serviceText.WriteString("globalThis.JSX.IntrinsicElements")
-	}
 
 	var scriptEl *vue_ast.ElementNode
 	var scriptSetupEl *vue_ast.ElementNode
@@ -257,38 +74,28 @@ RootChild:
 			}
 			templateEl = el
 		}
-	}
 
-	// https://github.com/volarjs/volar.js/discussions/188
-	lineStart := 0
-	for {
-		idx := strings.IndexByte(sourceText[lineStart:], '\n')
-		if idx == -1 {
-			for range len(sourceText) - lineStart {
-				ctx.serviceText.WriteByte(' ')
+		if el.Tag == "style" {
+			isScoped := false
+			for _, prop := range el.Props {
+				if prop.Kind == vue_ast.KindAttribute && prop.AsAttribute().Name == "scoped" {
+					isScoped = true
+					break
+				}
 			}
-			break
+			if isScoped {
+				ctx.hasScopedStyle = true
+				// Extract CSS class selectors from scoped style content
+				if len(el.Children) > 0 && el.Children[0].Kind == vue_ast.KindText {
+					cssContent := el.Children[0].AsText().Content
+					ctx.cssClasses = extractCSSClasses(cssContent)
+				}
+			}
 		}
-		idx += lineStart
-		for range idx - lineStart {
-			ctx.serviceText.WriteByte(' ')
-		}
-		ctx.serviceText.WriteByte('\n')
-		lineStart = idx + 1
 	}
 
-	// {
-	// 	c := newCodegenCtx(root, sourceText)
-	// 	generateScript(&c, scriptSetupEl, scriptEl, templateEl)
-	// 	newMappingsStart := len(ctx.mappings)
-	// 	ctx.mappings = append(ctx.mappings, c.mappings...)
-	// 	for i := newMappingsStart; i < len(ctx.mappings); i++ {
-	// 		ctx.mappings[i].ServiceOffset += ctx.serviceText.Len()
-	// 		// TODO: range mappings?
-	// 	}
-	// 	ctx.serviceText.Write([]byte(c.serviceText.String()))
-	// 	ctx.diagnostics = append(ctx.diagnostics, c.diagnostics...)
-	// }
+	// Volar emits script content inline without space padding.
+	// Line correspondence is handled through source mappings, not space padding.
 	generateScript(&ctx, scriptSetupEl, scriptEl, templateEl)
 
 	return ctx.serviceText.String(), ctx.mappings, ctx.ignoreDirectives, ctx.expectErrorDirectives, ctx.diagnostics
@@ -304,6 +111,26 @@ type codegenCtx struct {
 	diagnostics             []*ast.Diagnostic
 	internalVariableCounter int
 	options                 VueOptions
+	templateHasSlots        bool
+	hasScopedStyle          bool
+	cssClasses              []string // CSS class selectors from <style scoped>
+	// usedTemplateVars tracks variables referenced in the template for the
+	// // @ts-ignore [var1,var2,...]; block that Volar emits after template codegen.
+	usedTemplateVars []string
+	// allAccessedVars tracks ALL vars ever accessed via __VLS_ctx in the template
+	// (never cleared by scope drains), used for filtering __VLS_SetupExposed.
+	allAccessedVars []string
+	// scopedClasses tracks class names used in template elements for __VLS_StyleScopedClasses type.
+	// Ordered by first occurrence, deduplicated.
+	scopedClasses    []string
+	scopedClassesSet map[string]bool
+	// templateRefs tracks ref attribute values to element tags for __VLS_TemplateRefs type.
+	templateRefs []templateRefInfo
+}
+
+type templateRefInfo struct {
+	name    string // ref attribute value
+	elemTag string // element tag name
 }
 
 type VueVersion int
@@ -316,33 +143,39 @@ func NewVueVersionFromSemver(major, minor, patch int) VueVersion {
 	return VueVersion(major*1_000_000 + minor*1_000 + patch)
 }
 
+// atLeast returns true if the version is unset (0, meaning "assume latest")
+// or at least the given version.
+func (v VueVersion) atLeast(major, minor, patch int) bool {
+	return v == 0 || v >= NewVueVersionFromSemver(major, minor, patch)
+}
+
 // https://github.com/vuejs/core/pull/10801
 func (v VueVersion) supportsTypeProps() bool {
-	return v >= NewVueVersionFromSemver(3, 5, 0)
+	return v.atLeast(3, 5, 0)
 }
 func (v VueVersion) supportsTypeEmits() bool {
 	return v.supportsTypeProps()
 }
 
 func (v VueVersion) supportsDefineSlots() bool {
-	return v >= NewVueVersionFromSemver(3, 3, 0)
+	return v.atLeast(3, 3, 0)
 }
 
 func (v VueVersion) supportsDefineModel() bool {
-	return v >= NewVueVersionFromSemver(3, 4, 0)
+	return v.atLeast(3, 4, 0)
 }
 
 // https://github.com/vuejs/core/pull/11699
 func (v VueVersion) modelRefHasGetterAndSetter() bool {
-	return v >= NewVueVersionFromSemver(3, 5, 0)
+	return v.atLeast(3, 5, 0)
 }
 
 func (v VueVersion) hasPublicPropsType() bool {
-	return v >= NewVueVersionFromSemver(3, 4, 0)
+	return v.atLeast(3, 4, 0)
 }
 
 func (v VueVersion) hasJsxRuntimeTypes() bool {
-	return v >= NewVueVersionFromSemver(3, 3, 0)
+	return v.atLeast(3, 3, 0)
 }
 
 func newCodegenCtx(root *vue_ast.RootNode, sourceText string, options VueOptions) codegenCtx {
@@ -354,6 +187,86 @@ func newCodegenCtx(root *vue_ast.RootNode, sourceText string, options VueOptions
 		diagnostics: []*ast.Diagnostic{},
 		options:     options,
 	}
+}
+
+// templateOutput holds the buffered output from template codegen.
+// This allows generating the template first (to collect used vars),
+// then emitting the script boilerplate with filtered bindings,
+// then appending the template output.
+type templateOutput struct {
+	text              string
+	mappings          []mapping.Mapping
+	ignoreDirectives  []mapping.IgnoreDirectiveMapping
+	expectErrorDirs   []mapping.ExpectErrorDirectiveMapping
+	diagnostics       []*ast.Diagnostic
+	usedTemplateVars  []string
+	allAccessedVars   []string
+	templateHasSlots  bool
+	internalVarCount  int
+	scopedClasses     []string
+	templateRefs      []templateRefInfo
+}
+
+// generateTemplateBuffered generates template codegen into a separate buffer.
+func generateTemplateBuffered(base *codegenCtx, el *vue_ast.ElementNode) templateOutput {
+	// Create a temporary codegenCtx with its own serviceText
+	tmpCtx := codegenCtx{
+		ast:                     base.ast,
+		sourceText:              base.sourceText,
+		serviceText:             strings.Builder{},
+		mappings:                []mapping.Mapping{},
+		diagnostics:             []*ast.Diagnostic{},
+		internalVariableCounter: base.internalVariableCounter,
+		options:                 base.options,
+		hasScopedStyle:          base.hasScopedStyle,
+	}
+	generateTemplate(&tmpCtx, el)
+	return templateOutput{
+		text:              tmpCtx.serviceText.String(),
+		mappings:          tmpCtx.mappings,
+		ignoreDirectives:  tmpCtx.ignoreDirectives,
+		expectErrorDirs:   tmpCtx.expectErrorDirectives,
+		diagnostics:       tmpCtx.diagnostics,
+		usedTemplateVars:  tmpCtx.usedTemplateVars,
+		allAccessedVars:   tmpCtx.allAccessedVars,
+		templateHasSlots:  tmpCtx.templateHasSlots,
+		internalVarCount:  tmpCtx.internalVariableCounter,
+		scopedClasses:     tmpCtx.scopedClasses,
+		templateRefs:      tmpCtx.templateRefs,
+	}
+}
+
+// mergeTemplateOutput appends the buffered template output to the main context,
+// shifting all service offsets by the current position.
+func (c *codegenCtx) mergeTemplateOutput(t templateOutput) {
+	offset := uint32(c.serviceText.Len())
+	c.serviceText.WriteString(t.text)
+	for _, m := range t.mappings {
+		c.mappings = append(c.mappings, mapping.Mapping{
+			SourceOffset:  m.SourceOffset,
+			ServiceOffset: m.ServiceOffset + offset,
+			SourceLength:  m.SourceLength,
+		})
+	}
+	for _, d := range t.ignoreDirectives {
+		c.ignoreDirectives = append(c.ignoreDirectives, mapping.IgnoreDirectiveMapping{
+			ServiceOffset: d.ServiceOffset + offset,
+			ServiceLength: d.ServiceLength,
+		})
+	}
+	for _, d := range t.expectErrorDirs {
+		c.expectErrorDirectives = append(c.expectErrorDirectives, mapping.ExpectErrorDirectiveMapping{
+			SourceOffset:  d.SourceOffset,
+			ServiceOffset: d.ServiceOffset + offset,
+			SourceLength:  d.SourceLength,
+			ServiceLength: d.ServiceLength,
+		})
+	}
+	c.diagnostics = append(c.diagnostics, t.diagnostics...)
+	c.templateHasSlots = t.templateHasSlots
+	c.usedTemplateVars = t.usedTemplateVars
+	c.allAccessedVars = t.allAccessedVars
+	c.internalVariableCounter = t.internalVarCount
 }
 
 func (c *codegenCtx) reportDiagnostic(loc core.TextRange, message *diagnostics.Message, args ...any) {
@@ -399,7 +312,25 @@ func (c *codegenCtx) mapExpectErrorDirective(sourceStart, sourceEnd, serviceStar
 }
 
 func (c *codegenCtx) newInternalVariable() string {
+	n := c.internalVariableCounter
 	c.internalVariableCounter++
-	// TODO: maybe something more performant?
-	return "__VLS_Var_" + strconv.Itoa(c.internalVariableCounter)
+	return "__VLS_" + strconv.Itoa(n)
+}
+
+// cssClassSelectorRe matches CSS class selectors like .foo-bar
+var cssClassSelectorRe = regexp.MustCompile(`\.([\w-]+)`)
+
+// extractCSSClasses extracts class names from CSS content, preserving order and deduplicating.
+func extractCSSClasses(css string) []string {
+	matches := cssClassSelectorRe.FindAllStringSubmatch(css, -1)
+	var classes []string
+	seen := map[string]bool{}
+	for _, m := range matches {
+		name := m[1]
+		if !seen[name] {
+			seen[name] = true
+			classes = append(classes, name)
+		}
+	}
+	return classes
 }

@@ -42,25 +42,25 @@ This document contains the roadmap and detailed tasks for Golar development. Tas
 
 ---
 
-## 🎯 Current Sprint: v-model Implementation (IN PROGRESS)
+## ~~🎯 Current Sprint: v-model Implementation~~ - COMPLETED ✅
 
 **Goal**: Implement `v-model` directive codegen for two-way binding
 
-**Status**: `defineEmits`, `defineExpose`, `defineModel`, and `defineSlots` are all ALREADY IMPLEMENTED and tested! The docs were outdated.
+**Status**: ✅ IMPLEMENTED and tested across Vue 3.2-3.6!
 
-**What's needed for v-model**:
-1. ⬜ Parse `v-model="value"` and `v-model:propName="value"` directives
-2. ⬜ Generate getter expression: `value`
-3. ⬜ Generate setter expression: `($event) => (value = $event)`
-4. ⬜ Handle modifiers: `.lazy` (use change event), `.number` (parse number), `.trim` (trim string)
-5. ⬜ Special handling for input types (text, checkbox, radio, etc.)
-6. ⬜ Add tests comparing with Volar output
+**What was done**:
+1. ✅ Parse `v-model="value"` and `v-model:propName="value"` directives
+2. ✅ Generate standalone getter expression for default v-model: `(__VLS_ctx.value);`
+3. ✅ Generate prop binding for v-model with argument: `{ value: (__VLS_ctx.value) }`
+4. ✅ Matches Volar's exact output pattern
+5. ✅ All tests pass (TestVModelBasic, TestVModelWithArg, TestVModelCheckbox, TestVModelMultiple)
+6. ✅ Supports native elements (input, textarea, select)
 
-**Files to modify**:
-- `internal/vue/codegen/template.go` - Add v-model directive handler
-- `internal/vue/tests/` - Add v-model tests
+**Note**: Modifiers (`.lazy`, `.number`, `.trim`) affect runtime behavior only and don't change type checking codegen.
 
-**Reference**: Volar's `packages/language-core/lib/codegen/template/vModel.ts`
+**Files modified**:
+- `internal/vue/codegen/template.go` - Added `generateVModelGetter()` and skip logic
+- `internal/vue/tests/vmodel_test.go` - Added comprehensive tests
 
 ---
 
@@ -146,17 +146,18 @@ This difference is intentional - the leading semicolon prevents ASI issues when 
 
 **Files**: `internal/vue/codegen/script.go`, `internal/vue/tests/defineemits_test.go`
 
-### Task: Implement `v-model` Support - IN PROGRESS
+### ~~Task: Implement `v-model` Support~~ - COMPLETED ✅
 
-**Status**: Not implemented - starting now
+**Status**: ✅ IMPLEMENTED - All tests pass
 
-**What's needed**:
-1. Parse `v-model="value"` and `v-model:propName="value"`
-2. Generate both getter and setter code
-3. Handle modifiers (`.lazy`, `.number`, `.trim`)
-4. Handle different input types (text, checkbox, radio, select)
+**What was done**:
+1. ✅ Parse `v-model="value"` and `v-model:propName="value"`
+2. ✅ Generate standalone getter for default v-model
+3. ✅ Generate prop binding for v-model with argument
+4. ✅ Handles different input types (text, checkbox, radio, select)
+5. ✅ Matches Volar's exact codegen output
 
-**Reference**: Volar's `packages/language-core/lib/codegen/template/vModel.ts`
+**Files**: `internal/vue/codegen/template.go`, `internal/vue/tests/vmodel_test.go`
 
 ### ~~Task: Implement Component Type Inference~~ - COMPLETED ✅
 

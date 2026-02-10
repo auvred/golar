@@ -43,9 +43,9 @@ func TestDefinePropsVariableDecl(t *testing.T) {
 		f.VerifyQuickInfoAt(t, "2", "(property) foo: string", "")
 		switch version {
 		case vue_3_2:
-			f.VerifyQuickInfoAt(t, "3", "(property) $props: Readonly<Omit<{ foo: string; }, never> & {}>", "")
+			f.VerifyQuickInfoAt(t, "3", "(property) $props: Readonly<Omit<__VLS_Props, never> & {}>", "")
 		default:
-			f.VerifyQuickInfoAt(t, "3", "(property) $props: DefineProps<LooseRequired<{ foo: string; }>, never>", "")
+			f.VerifyQuickInfoAt(t, "3", "(property) $props: DefineProps<LooseRequired<__VLS_Props>, never>", "")
 		}
 		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
 	})

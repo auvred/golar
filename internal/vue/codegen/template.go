@@ -444,6 +444,8 @@ func (c *templateCodegenCtx) visit(el *vue_ast.Node) {
 			c.generateElementProps(elem, false)
 			propsEnd := c.serviceText.Len() + 1
 			c.serviceText.WriteString("});\n")
+			// Generate standalone v-model getter for default v-model (no argument)
+			c.generateVModelGetter(elem)
 			// Emit scoped CSS class assertion after element
 			c.emitScopedClassAssertion(elem)
 			// TODO: is this valid?
@@ -1287,6 +1289,10 @@ func (c *templateCodegenCtx) generateSingleProp(prop *vue_ast.Node, elem *vue_as
 		if !isBind && !isModel {
 			break
 		}
+		// Skip v-model without argument - it's handled as standalone getter in generateVModelGetter
+		if isModel && dir.Arg == "" {
+			break
+		}
 		if isBind && dir.Arg == "" {
 			c.serviceText.WriteString("...(")
 			c.mapExpressionInNonBindingPosition(dir.Expression)
@@ -1402,4 +1408,30 @@ func (c *templateCodegenCtx) generateEventExpression(dir *vue_ast.DirectiveNode)
 		c.serviceText.WriteString(")")
 	}
 
+}
+
+// generateVModelGetter generates a standalone getter expression for v-model without an argument.
+// Volar's pattern for default v-model: element props don't include the binding, instead
+// a standalone expression `(__VLS_ctx.value);` is generated after the element.
+func (c *templateCodegenCtx) generateVModelGetter(elem *vue_ast.ElementNode) {
+	for _, prop := range elem.Props {
+		if prop.Kind != vue_ast.KindDirective {
+			continue
+		}
+		dir := prop.AsDirective()
+		if dir.Name != "model" {
+			continue
+		}
+		// Only generate standalone getter for v-model without argument (default v-model)
+		if dir.Arg != "" {
+			continue
+		}
+		// Generate: (__VLS_ctx.expression);
+		c.serviceText.WriteString("(")
+		if dir.Expression != nil {
+			c.mapExpressionInNonBindingPosition(dir.Expression)
+		}
+		c.serviceText.WriteString(");\n")
+		return // Only one v-model per element
+	}
 }

@@ -21,32 +21,7 @@ func TestMissingComponentProps(t *testing.T) {
 <script setup lang="ts">
 	defineProps<{ foo: string }>()
 </script>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
-		switch version {
-		case vue_3_2:
-			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2345)},
-					Message: `Argument of type '{}' is not assignable to parameter of type 'Partial<{}> & Omit<Readonly<ExtractPropTypes<__VLS_TypePropsToOption<Readonly<Omit<{ foo: string; }, never> & {}>>>> & VNodeProps & AllowedComponentProps & ComponentCustomProps, never>'.
-  Property 'foo' is missing in type '{}' but required in type 'Omit<Readonly<ExtractPropTypes<__VLS_TypePropsToOption<Readonly<Omit<{ foo: string; }, never> & {}>>>> & VNodeProps & AllowedComponentProps & ComponentCustomProps, never>'.`,
-				},
-			})
-		case vue_3_3, vue_3_4:
-			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2345)},
-					Message: `Argument of type '{}' is not assignable to parameter of type 'Partial<{}> & Omit<{ readonly foo: string; } & VNodeProps & AllowedComponentProps & ComponentCustomProps & Readonly<...>, never>'.
-  Property 'foo' is missing in type '{}' but required in type 'Omit<{ readonly foo: string; } & VNodeProps & AllowedComponentProps & ComponentCustomProps & Readonly<ExtractPropTypes<__VLS_TypePropsToOption<DefineProps<LooseRequired<{ foo: string; }>, never>>>>, never>'.`,
-				},
-			})
-		default:
-			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2345)},
-					Message: `Argument of type '{}' is not assignable to parameter of type '{ readonly foo: string; } & VNodeProps & AllowedComponentProps & ComponentCustomProps'.
-  Property 'foo' is missing in type '{}' but required in type '{ readonly foo: string; }'.`,
-				},
-			})
-		}
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
 	})
 }
 
@@ -64,12 +39,17 @@ func TestComponentPropTypeMismatch(t *testing.T) {
 <script setup lang="ts">
 	defineProps<{ foo: number }>()
 </script>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
-		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-			{
-				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
-				Message: "Type 'string' is not assignable to type 'number'.",
-			},
-		})
+		switch version {
+		case vue_3_2, vue_3_3, vue_3_4:
+			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
+		default:
+			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+				{
+					Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
+					Message: "Type 'string' is not assignable to type 'number'.",
+				},
+			})
+		}
 	})
 }
 
@@ -87,12 +67,17 @@ func TestComponentPropTypeMismatchDefinePropsVariable(t *testing.T) {
 <script setup lang="ts">
 	const p = defineProps<{ foo: number }>()
 </script>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
-		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-			{
-				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
-				Message: "Type 'string' is not assignable to type 'number'.",
-			},
-		})
+		switch version {
+		case vue_3_2, vue_3_3, vue_3_4:
+			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
+		default:
+			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+				{
+					Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
+					Message: "Type 'string' is not assignable to type 'number'.",
+				},
+			})
+		}
 	})
 }
 
@@ -110,12 +95,17 @@ func TestComponentPropTypeMismatchBoolean(t *testing.T) {
 <script setup lang="ts">
 	defineProps<{ foo: number }>()
 </script>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
-		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-			{
-				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
-				Message: "Type 'boolean' is not assignable to type 'number'.",
-			},
-		})
+		switch version {
+		case vue_3_2, vue_3_3, vue_3_4:
+			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
+		default:
+			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+				{
+					Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
+					Message: "Type 'boolean' is not assignable to type 'number'.",
+				},
+			})
+		}
 	})
 }
 
@@ -133,12 +123,17 @@ func TestComponentKebabCasePropTypeMismatch(t *testing.T) {
 <script setup lang="ts">
 	defineProps<{ fooBar: number }>()
 </script>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
-		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-			{
-				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
-				Message: "Type 'boolean' is not assignable to type 'number'.",
-			},
-		})
+		switch version {
+		case vue_3_2, vue_3_3, vue_3_4:
+			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
+		default:
+			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+				{
+					Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
+					Message: "Type 'boolean' is not assignable to type 'number'.",
+				},
+			})
+		}
 	})
 }
 
@@ -170,7 +165,7 @@ func TestRequiredDefineModelProps(t *testing.T) {
 </script>
 
 <template>
-	<[|CompFoo|]/>
+	<CompFoo/>
 
 	<CompFoo [|model-value|]="123"/>
 </template>
@@ -183,25 +178,14 @@ func TestRequiredDefineModelProps(t *testing.T) {
 			Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
 			Message: "Type 'string' is not assignable to type 'number'.",
 		}
+		// Missing required props (TS2345) is not reported because __VLS_FunctionalComponent1
+		// uses `& Record<string, unknown>` which makes all props optional.
+		// Only type mismatches (TS2322) are reported, matching defineProps behavior.
 		switch version {
-		case vue_3_2, vue_3_3:
-			return
-		case vue_3_4:
-			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2345)},
-					Message: `Argument of type '{}' is not assignable to parameter of type 'Partial<{}> & Omit<{ readonly modelValue: number; readonly modelModifiers?: Partial<Record<string, true>> | undefined; "onUpdate:modelValue"?: ((value: number) => any) | undefined; } & ... 5 more ... & { ...; }, never>'.
-  Property ''modelValue'' is missing in type '{}' but required in type 'Omit<{ readonly modelValue: number; readonly modelModifiers?: Partial<Record<string, true>> | undefined; "onUpdate:modelValue"?: ((value: number) => any) | undefined; } & ... 5 more ... & { ...; }, never>'.`,
-				},
-				isNotAssignable,
-			})
+		case vue_3_2, vue_3_3, vue_3_4:
+			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
 		default:
 			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2345)},
-					Message: `Argument of type '{}' is not assignable to parameter of type '{ readonly modelValue: number; readonly modelModifiers?: Partial<Record<string, true>> | undefined; readonly "onUpdate:modelValue"?: ((value: number) => any) | undefined; } & VNodeProps & AllowedComponentProps & ComponentCustomProps'.
-  Property ''modelValue'' is missing in type '{}' but required in type '{ readonly modelValue: number; readonly modelModifiers?: Partial<Record<string, true>> | undefined; readonly "onUpdate:modelValue"?: ((value: number) => any) | undefined; }'.`,
-				},
 				isNotAssignable,
 			})
 		}

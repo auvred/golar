@@ -228,14 +228,20 @@ func parseFile(fs vfs.FS, opts ast.SourceFileParseOptions, sourceText string, sc
 			newFile.SetParseOptions(file.ParseOptions())
 			return wrapDiagnostics(&newFile, diags, false)
 		}
-		file.WrapSemanticDiagnostics = func (diags []*ast.Diagnostic) []*ast.Diagnostic {
-			// TODO: this is hack
-			newFile := ast.SourceFile{}
-			newFile.GolarLanguageData = file.GolarLanguageData
-			newFile.SetText(sourceText)
-			newFile.SetParseOptions(file.ParseOptions())
-			return wrapDiagnostics(&newFile, diags, true)
-		}
+		file.WrapSemanticDiagnostics = func() func([]*ast.Diagnostic) []*ast.Diagnostic {
+			// WrapSemanticDiagnostics is called for both semantic and suggestion diagnostics.
+			// Only collect unused directives on the first call (semantic path) to avoid duplicates.
+			unusedCollected := false
+			return func(diags []*ast.Diagnostic) []*ast.Diagnostic {
+				newFile := ast.SourceFile{}
+				newFile.GolarLanguageData = file.GolarLanguageData
+				newFile.SetText(sourceText)
+				newFile.SetParseOptions(file.ParseOptions())
+				collectUnused := !unusedCollected
+				unusedCollected = true
+				return wrapDiagnostics(&newFile, diags, collectUnused)
+			}
+		}()
 		langData := languageData{
 			sourceText:            sourceText,
 		}
@@ -296,14 +302,20 @@ func parseFile(fs vfs.FS, opts ast.SourceFileParseOptions, sourceText string, sc
 			newFile.SetParseOptions(file.ParseOptions())
 			return wrapDiagnostics(&newFile, diags, false)
 		}
-		file.WrapSemanticDiagnostics = func (diags []*ast.Diagnostic) []*ast.Diagnostic {
-			// TODO: this is hack
-			newFile := ast.SourceFile{}
-			newFile.GolarLanguageData = file.GolarLanguageData
-			newFile.SetText(sourceText)
-			newFile.SetParseOptions(file.ParseOptions())
-			return wrapDiagnostics(&newFile, diags, true)
-		}
+		file.WrapSemanticDiagnostics = func() func([]*ast.Diagnostic) []*ast.Diagnostic {
+			// WrapSemanticDiagnostics is called for both semantic and suggestion diagnostics.
+			// Only collect unused directives on the first call (semantic path) to avoid duplicates.
+			unusedCollected := false
+			return func(diags []*ast.Diagnostic) []*ast.Diagnostic {
+				newFile := ast.SourceFile{}
+				newFile.GolarLanguageData = file.GolarLanguageData
+				newFile.SetText(sourceText)
+				newFile.SetParseOptions(file.ParseOptions())
+				collectUnused := !unusedCollected
+				unusedCollected = true
+				return wrapDiagnostics(&newFile, diags, collectUnused)
+			}
+		}()
 		diags := file.Diagnostics()
 		for i, diag := range diags {
 			diags[i] = adjustDiagnostic(file, diag)
@@ -448,13 +460,15 @@ var GolarExtCallbacks = &golarext.GolarCallbacks{
 
 func WrapFS(fs vfs.FS) vfs.FS {
 	return utils.NewOverlayVFS(fs, map[string]string{
-		vue_codegen.GlobalTypesPath: vue_codegen.GlobalTypes,
+		vue_codegen.TemplateHelpersPath: vue_codegen.TemplateHelpers,
+		vue_codegen.PropsFallbackPath:   vue_codegen.PropsFallback,
 	})
 }
 
 func WrapFourslashFS(globalOptions map[string]string, fs vfs.FS) vfs.FS {
 	overlay := map[string]string{
-		vue_codegen.GlobalTypesPath: vue_codegen.GlobalTypes,
+		vue_codegen.TemplateHelpersPath: vue_codegen.TemplateHelpers,
+		vue_codegen.PropsFallbackPath:   vue_codegen.PropsFallback,
 	}
 	if extraFiles := globalOptions["golarextrafiles"]; extraFiles != "" {
 		for pair := range strings.SplitSeq(extraFiles, "\x1f") {

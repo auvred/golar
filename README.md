@@ -50,6 +50,7 @@ Golar is under active development. Below is the current status of Vue SFC featur
 | `defineModel` | Supported | Two-way binding helper for Vue 3.4+ |
 | `defineSlots` | Supported | Slot type definitions with `defineSlots<T>()` |
 | Component emit type inference | Supported | Full event handler type checking with emit types |
+| `v-model` | Supported | Two-way binding on native elements (default and with arguments) |
 
 ### Partially Supported
 
@@ -63,7 +64,6 @@ Golar is under active development. Below is the current status of Vue SFC featur
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `v-model` | Not yet | Two-way binding codegen |
 | Generic components | Not yet | `<script setup generic="T">` |
 | CSS `v-bind()` | Not yet | Style variable binding |
 | Pug templates | Not yet | `<template lang="pug">` |

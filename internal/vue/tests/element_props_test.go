@@ -15,7 +15,7 @@ func TestElementProps(t *testing.T) {
 </script>
 
 <template>
-	<div [|foo|]="123"></div>
+	<div foo="123"></div>
 	<div id="123"></div>
 	<div [|:id="123"|]></div>
 	<[|div|] v-bind="{ id: 123 }"></div>
@@ -35,67 +35,30 @@ func TestElementProps(t *testing.T) {
 			Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
 			Message:"Type 'number' is not assignable to type 'string'.",
 	}
+	var nMore string
 	switch version {
-	case vue_3_2:
-			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2353)},
-					Message: "Object literal may only specify known properties, and ''foo'' does not exist in type 'ElementAttrs<HTMLAttributes>'.",
-				},
-				common1,
-				{
+	case vue_3_2, vue_3_3, vue_3_4:
+		nMore = `7 more ...; foo: "123"`
+	default:
+		nMore = `8 more ...; foo: "123"`
+	}
+	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+		common1,
+		{
 			Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2345)},
-			Message: `Argument of type '{ id: number; }' is not assignable to parameter of type 'ElementAttrs<HTMLAttributes>'.
+			Message: `Argument of type '{ id: number; }' is not assignable to parameter of type 'HTMLAttributes & ReservedProps & Record<string, unknown>'.
   Type '{ id: number; }' is not assignable to type 'HTMLAttributes'.
     Types of property 'id' are incompatible.
       Type 'number' is not assignable to type 'string'.`,
-	},
-				common1,
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2339)},
-					Message: "Property 'dir' does not exist on type '{ $: ComponentInternalInstance; $data: {}; $props: {}; $attrs: Data; $refs: Data; $slots: Readonly<InternalSlots>; $root: ComponentPublicInstance<...>; ... 8 more ...; id: 123; }'.",
-				},
-			})
-		case vue_3_3, vue_3_4:
-			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2353)},
-					Message: "Object literal may only specify known properties, and ''foo'' does not exist in type 'HTMLAttributes & ReservedProps'.",
-				},
-				common1,
-				{
-			Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2345)},
-			Message: `Argument of type '{ id: number; }' is not assignable to parameter of type 'HTMLAttributes & ReservedProps'.
-  Type '{ id: number; }' is not assignable to type 'HTMLAttributes'.
-    Types of property 'id' are incompatible.
-      Type 'number' is not assignable to type 'string'.`,
-			},
-				common1,
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2339)},
-					Message: "Property 'dir' does not exist on type '{ $: ComponentInternalInstance; $data: {}; $props: {}; $attrs: Data; $refs: Data; $slots: Readonly<InternalSlots>; $root: ComponentPublicInstance<...>; ... 8 more ...; id: 123; }'.",
-				},
-			})
-		default:
-			f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2353)},
-					Message: "Object literal may only specify known properties, and ''foo'' does not exist in type 'HTMLAttributes & ReservedProps'.",
-				},
-				common1,
-				{
-			Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2345)},
-			Message: `Argument of type '{ id: number; }' is not assignable to parameter of type 'HTMLAttributes & ReservedProps'.
-  Type '{ id: number; }' is not assignable to type 'HTMLAttributes'.
-    Types of property 'id' are incompatible.
-      Type 'number' is not assignable to type 'string'.`,
-			},
-				common1,
-				{
-					Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2339)},
-					Message: "Property 'dir' does not exist on type '{ $: ComponentInternalInstance; $data: {}; $props: {}; $attrs: Data; $refs: Data; $slots: Readonly<InternalSlots>; $root: ComponentPublicInstance<...>; ... 9 more ...; id: 123; }'.",
-				},
-			})
-		}
+		},
+		{
+			Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2339)},
+			Message: "Property 'id' does not exist on type '{ $: ComponentInternalInstance; $data: {}; $props: {}; $attrs: Data; $refs: Data; $slots: Readonly<InternalSlots>; $root: ComponentPublicInstance<...>; ... " + nMore + "; }'.",
+		},
+		{
+			Code: &lsproto.IntegerOrString{Integer: ptrTo[int32](2339)},
+			Message: "Property 'dir' does not exist on type '{ $: ComponentInternalInstance; $data: {}; $props: {}; $attrs: Data; $refs: Data; $slots: Readonly<InternalSlots>; $root: ComponentPublicInstance<...>; ... " + nMore + "; }'.",
+		},
+	})
 	})
 }

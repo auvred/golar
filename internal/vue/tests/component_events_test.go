@@ -142,8 +142,11 @@ func TestDefineModelEvent(t *testing.T) {
 		switch version {
 		case vue_3_2, vue_3_3:
 			return
+		case vue_3_4:
+			f.VerifyQuickInfoAt(t, "1", `(parameter) v: any`, "")
+		default:
+			f.VerifyQuickInfoAt(t, "1", `(parameter) v: string`, "")
 		}
-		f.VerifyQuickInfoAt(t, "1", `(parameter) v: string`, "")
 		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
 	})
 }

@@ -5,6 +5,8 @@
 // These types are used by the generated TypeScript code to provide type checking
 // for Vue templates. They must match Volar's definitions exactly for compatibility.
 
+/// <reference lib="es2015" />
+
 declare global {
 	const __VLS_directiveBindingRestFields: { instance: null; oldValue: null; modifiers: any; dir: any };
 

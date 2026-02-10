@@ -9,7 +9,7 @@ import (
 )
 
 func TestGlobalTypesNoErrors(t *testing.T) {
-	runFourslashTest(t, "// @filename: types.ts\n"+vue_codegen.GlobalTypes, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
+	runFourslashTest(t, "// @filename: types.ts\n"+vue_codegen.TemplateHelpers, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
 		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
 	})
 }

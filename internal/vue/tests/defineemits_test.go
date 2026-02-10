@@ -17,8 +17,8 @@ const emit = defineEmits<{ (e: 'foo', id: number): void  }>()
 	{{ emit/*1*/ }}
 	{{ $emit/*2*/ }}
 </template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
-		f.VerifyQuickInfoAt(t, "1", `(property) emit: (e: "foo", id: number) => void`, "")
-		f.VerifyQuickInfoAt(t, "2", `(property) $emit: (e: "foo", id: number) => void`, "")
+		f.VerifyQuickInfoAt(t, "1", `(property) emit: __VLS_Emit`, "")
+		f.VerifyQuickInfoAt(t, "2", `(property) $emit: __VLS_Emit`, "")
 		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
 	})
 }

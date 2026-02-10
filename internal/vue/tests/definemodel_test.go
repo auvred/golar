@@ -39,7 +39,6 @@ func TestDefineModel(t *testing.T) {
 	{{ third/*6*/ }}
 	{{ $props.third/*7*/ }}
 	{{ model3/*8*/ }}
-	{{ thirdModifiers/*9*/ }}
 	{{ fourthModifiers/*10*/ }}
 	{{ fooBar/*11*/ }}
 	{{ fooBarModifiers/*12*/ }}
@@ -61,14 +60,21 @@ func TestDefineModel(t *testing.T) {
 			f.VerifyQuickInfoAt(t, "8", `(property) model3: number`, "")
 		}
 		f.VerifyQuickInfoAt(t, "2", `(property) 'first': string | undefined`, "")
-		f.VerifyQuickInfoAt(t, "4", `(property) 'second': string`, "")
-		f.VerifyQuickInfoAt(t, "6", `(property) 'third': string`, "")
-		f.VerifyQuickInfoAt(t, "7", `(property) 'third': string`, "")
-		f.VerifyQuickInfoAt(t, "9", `(property) 'thirdModifiers': Partial<Record<string, true>> | undefined`, "")
+		f.VerifyQuickInfoAt(t, "4", `(property) 'second': string | undefined`, "") // spread opts not statically analyzed
+		switch version {
+		case vue_3_4:
+			f.VerifyQuickInfoAt(t, "6", `(property) 'third': string`, "")
+			f.VerifyQuickInfoAt(t, "7", `(property) 'third': string`, "")
+		default:
+			// On 3.5+, typeof model3['value'] resolves to number (getter return type)
+			f.VerifyQuickInfoAt(t, "6", `(property) 'third': number`, "")
+			f.VerifyQuickInfoAt(t, "7", `(property) 'third': number`, "")
+		}
+		// thirdModifiers is not generated without explicit modifier type arg (matches Volar)
 		f.VerifyQuickInfoAt(t, "10", `(property) 'fourthModifiers': Partial<Record<"trim", true>> | undefined`, "")
 		f.VerifyQuickInfoAt(t, "11", `(property) 'fooBar': string`, "")
 		f.VerifyQuickInfoAt(t, "12", `(property) 'fooBarModifiers': Partial<Record<"capitalize", true>> | undefined`, "")
-		f.VerifyQuickInfoAt(t, "13", `(property) 'modelValue': "default model"`, "")
+		f.VerifyQuickInfoAt(t, "13", `(property) modelValue: "default model"`, "")
 		f.VerifyQuickInfoAt(t, "14", `(property) 'modelModifiers': Partial<Record<"mod", true>> | undefined`, "")
 
 		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})

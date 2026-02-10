@@ -130,6 +130,26 @@ const handleClick = () => {}
 	f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
 }
 
+func TestVOnMultiStatementRefAssign(t *testing.T) {
+	runFourslashTest(t, `// @filename: file.vue
+<script setup lang="ts">
+import { ref } from 'vue'
+const showMenu = ref(false)
+const showConfirm = ref(false)
+const count = ref(0)
+</script>
+
+<template>
+	<button @click="
+		showConfirm = false;
+		showMenu = false;
+		count = 0;
+	"></button>
+</template>`, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
+	})
+}
+
 func TestVOnTypeError(t *testing.T) {
 	t.Parallel()
 

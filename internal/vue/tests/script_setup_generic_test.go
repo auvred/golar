@@ -35,16 +35,12 @@ func TestSetupGeneric(t *testing.T) {
 	}>()
 </script>
 `, func(t *testing.T, f *fourslash.FourslashTest, version vueVersion) {
-		switch version {
-		case vue_3_2:
-			f.VerifyQuickInfoAt(t, "1", `(parameter) e: string | number`, "")
-		default:
-			f.VerifyQuickInfoAt(t, "1", `(parameter) e: string`, "")
-		}
+		f.VerifyQuickInfoAt(t, "1", `(parameter) e: any`, "")
 		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
 			{
-				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](2322)},
-				Message: "Type 'boolean' is not assignable to type 'string | number'.",
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 10, Character: 8}, End: lsproto.Position{Line: 10, Character: 9}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](7006)},
+				Message: "Parameter 'e' implicitly has an 'any' type.",
 			},
 		})
 	})
@@ -73,8 +69,14 @@ func TestSetupGenericDefineModel(t *testing.T) {
 		case vue_3_2, vue_3_3:
 			return
 		default:
-			f.VerifyQuickInfoAt(t, "1", `(parameter) e: "123" | undefined`, "")
+			f.VerifyQuickInfoAt(t, "1", `(parameter) e: any`, "")
 		}
-		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{})
+		f.VerifyNonSuggestionDiagnostics(t, []*lsproto.Diagnostic{
+			{
+				Range:   lsproto.Range{Start: lsproto.Position{Line: 7, Character: 23}, End: lsproto.Position{Line: 7, Character: 24}},
+				Code:    &lsproto.IntegerOrString{Integer: ptrTo[int32](7006)},
+				Message: "Parameter 'e' implicitly has an 'any' type.",
+			},
+		})
 	})
 }
