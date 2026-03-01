@@ -1,7 +1,9 @@
+import os from 'node:os'
 import path from 'node:path'
 import spawn, { SubprocessError } from 'nano-spawn'
 
 const repoRoot = path.join(import.meta.dirname, '..')
+const ext = os.platform() === 'win32' ? '.exe' : ''
 
 export async function runGolar(opts: {
 	cwd: string
@@ -14,7 +16,9 @@ export async function runGolar(opts: {
 	}
 }) {
 	const plugins = [
-		opts.plugins.astro && [path.join(repoRoot, 'packages', 'astro', 'astro')],
+		opts.plugins.astro && [
+			path.join(repoRoot, 'packages', 'astro', 'astro' + ext),
+		],
 		opts.plugins.ember && [
 			process.execPath,
 			path.join(repoRoot, 'packages', 'ember', 'src', 'bin.ts'),
@@ -32,7 +36,7 @@ export async function runGolar(opts: {
 		.map((cmd) => cmd.join('\x1f'))
 		.join('\x1e')
 
-	return await spawn(path.join(repoRoot, 'golar'), opts.args, {
+	return await spawn(path.join(repoRoot, 'golar' + ext), opts.args, {
 		env: {
 			GOLAR_PLUGINS: plugins,
 		},

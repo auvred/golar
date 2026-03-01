@@ -4,7 +4,7 @@
 	"private": true,
 	"version": "0.0.14",
 	"scripts": {
-		"build": "tsdown && CGO_ENABLED=0 go build -o golar ./thirdparty/typescript-go/cmd/tsgo && CGO_ENABLED=0 go build -o ./packages/astro/astro ./packages/astro",
+		"build": "tsdown && node ./tools/build.ts",
 		"build-typescript-lite": "pnpm -C packages/vue build-typescript-lite"
 	},
 	"devDependencies": {
