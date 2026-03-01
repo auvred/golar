@@ -41,6 +41,8 @@ jobs:
           node ./tools/patch-astro.ts
           node ./tools/patch-tsgo.ts
 
+      - run: pnpm build-typescript-lite
+
       - run: pnpm build
 
       - run: pnpm vitest
