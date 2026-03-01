@@ -28,12 +28,13 @@ jobs:
         with:
           node-version: 24.13.1
 
+      - run: pnpm install --frozen-lockfile
+
       - run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions"
 
           node ./tools/patch-astro.ts
-
           node ./tools/patch-tsgo.ts
 
       - run: go build -o ./bin/golar ./thirdparty/typescript-go/cmd/tsgo
@@ -76,8 +77,6 @@ jobs:
           path: build
 
       - run: node ./tools/gen-npm-packages.ts copy-binaries
-
-      - run: pnpm --version && node --version
 
       - run: pnpm install --frozen-lockfile
 
