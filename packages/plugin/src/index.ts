@@ -90,7 +90,9 @@ export type CreatePluginOptions = {
 
 export function createPlugin(opts: CreatePluginOptions) {
 	if (worker_threads.isMainThread) {
-		const workers = new Array(Math.max(Math.min(os.cpus().length / 2, 4), 1))
+		const workers = new Array(
+			Math.max(Math.min(os.availableParallelism() / 2, 4), 1),
+		)
 			.fill(null)
 			.map(() => {
 				const w = {
