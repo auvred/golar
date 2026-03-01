@@ -6,7 +6,7 @@
 		"./golar-entry": "./src/golar-entry.ts"
 	},
 	"scripts": {
-		"build-typescript-lite": "cd ../../thirdparty/typescript && npm install && npx hereby generate-diagnostics && cd - && node ./scripts/build-typescript-lite.ts"
+		"build-typescript-lite": "cd ../../thirdparty/typescript && npm install && npx hereby generate-diagnostics && cd ../../packages/vue && node ./scripts/build-typescript-lite.ts"
 	},
 	"files": [
 		"./dist"
