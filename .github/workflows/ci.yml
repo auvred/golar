@@ -14,42 +14,37 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest] #[ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
+      # for thirdparty/typescript
+      - run: git config --global core.longpaths true
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        with:
+          go-version-file: go.mod
+
       - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: 24.13.1
-      - run: node -e 'console.log(os.cpus(), os.availableParallelism())'
-    # steps:
-    #   # for thirdparty/typescript
-    #   - run: git config --global core.longpaths true
-    #
-    #   - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    #     with:
-    #       submodules: true
-    #       persist-credentials: false
-    #
-    #   - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
-    #     with:
-    #       go-version-file: go.mod
-    #
-    #   - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-    #     with:
-    #       node-version: 24.13.1
-    #
-    #   - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
-    #
-    #   - run: pnpm install --frozen-lockfile
-    #
-    #   - run: |
-    #       git config --global user.email "github-actions[bot]@users.noreply.github.com"
-    #       git config --global user.name "github-actions"
-    #
-    #       node ./tools/patch-astro.ts
-    #       node ./tools/patch-tsgo.ts
-    #
-    #   - run: pnpm build-typescript-lite
-    #
-    #   - run: pnpm build
-    #
-    #   - run: pnpm vitest
+
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions"
+
+          node ./tools/patch-astro.ts
+          node ./tools/patch-tsgo.ts
+
+      - run: pnpm build-typescript-lite
+
+      - run: pnpm build
+
+      - run: pnpm vitest
