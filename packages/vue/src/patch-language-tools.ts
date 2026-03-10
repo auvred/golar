@@ -36,7 +36,7 @@ patchFile('@vue/language-core/lib/codegen/template/context.js', (src) => {
 		const data = stack.at(-1)
 		if (data?.expectError != null) {
 			features = {
-				...feature,
+				...features,
 				__expectErrorCommentLoc: [
 					(options?.template?.startTagEnd ?? 0) + data.expectError.node.loc.start.offset,
 					(options?.template?.startTagEnd ?? 0) + data.expectError.node.loc.end.offset,
