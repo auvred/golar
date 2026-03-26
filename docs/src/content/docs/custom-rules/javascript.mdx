@@ -1,0 +1,133 @@
+---
+title: JavaScript Rules
+description: Write and run a custom type-aware JavaScript lint rule with Golar.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+This guide shows how to write a custom JavaScript rule that reads type information from typescript-go and runs on both `.ts` and `.vue` files.
+
+You will build a `js/unsafe-calls` rule that reports any call where the called value has type `any`, then run it on the example files.
+
+:::caution
+These APIs are currently unstable. Expect breaking changes while custom-rule support is still evolving.
+:::
+
+## Install Dependencies
+
+This example uses Vue so the same rule runs on a plain TypeScript file and an embedded-language file.
+
+<PackageManagers pkg="golar @golar/vue vue" dev />
+
+## Create Example Files
+
+Create `index.ts`:
+
+```typescript
+// index.ts
+export declare const fn: any
+
+fn()
+```
+
+Create `index.vue`:
+
+```vue
+<!-- index.vue -->
+<script lang="ts" setup>
+	import { fn } from './index.ts'
+</script>
+
+<template>
+	{{ fn() }}
+</template>
+```
+
+## Write the Rule
+
+Create `js-rule.ts`:
+
+{/* prettier-ignore */}
+```typescript {"1. Import the rule API and TypeScript AST helpers:":3-9} {"2. Define the rule and get access to the current file context:":11-14} {"3. Walk the file and inspect every call expression:":16-23} {"4. Read the type of the called expression:":26-30} {"5. Report an error when the called value is any:":32-41}
+// js-rule.ts
+
+
+import { defineRule } from 'golar/unstable'
+import {
+	isCallExpression,
+	TypeFlags,
+	type CallExpression,
+} from 'golar/unstable-tsgo'
+
+
+export const jsRule = defineRule({
+	name: 'js/unsafe-calls',
+	setup(context) {
+
+
+		context.sourceFile.forEachChild(function visit(node) {
+			if (isCallExpression(node)) {
+				checkCall(node)
+			}
+
+			node.forEachChild(visit)
+		})
+
+		function checkCall(node: CallExpression) {
+
+			const type = context.program.getTypeAtLocation(node.expression)
+			if (type == null) {
+				return
+			}
+
+
+			if ((type.flags & TypeFlags.Any) !== 0 && type.intrinsicName === 'any') {
+				context.report({
+					message: 'Unsafe any call.',
+					range: {
+						begin: node.expression.pos,
+						end: node.expression.end,
+					},
+				})
+			}
+		}
+	},
+})
+```
+
+This rule works in three steps: traverse the file, ask Golar for the type of each called expression, and report an error if that type is `any`.
+
+The important part is `context.program.getTypeAtLocation(...)`. That is what makes the rule type-aware instead of syntax-only.
+
+## Register the Rule
+
+Create `golar.config.ts`:
+
+```typescript
+// golar.config.ts
+import { defineConfig } from 'golar/unstable'
+import '@golar/vue'
+
+import { jsRule } from './js-rule.ts'
+
+export default defineConfig({
+	lint: {
+		use: [
+			{
+				files: ['index.ts', 'index.vue'],
+				rules: [jsRule],
+			},
+		],
+	},
+})
+```
+
+The `lint.use` entry tells Golar which files should use the rule.
+
+## Run the Rule
+
+Run Golar in the default mode:
+
+<PackageManagers type="exec" pkg="golar" />
+
+You should see `js/unsafe-calls` errors for both `index.ts` and `index.vue`.

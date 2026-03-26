@@ -1,0 +1,25 @@
+---
+title: Default Mode
+description: Run linting and type-checking together with the default Golar CLI mode.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+The default mode runs when you invoke `golar` without a subcommand.
+It is the recommended mode for day-to-day checks because it runs [`golar lint`](/modes/lint/) and then [`golar typecheck`](/modes/typecheck/) in a single command.
+
+<PackageManagers type="exec" pkg="golar" />
+
+## Configuration
+
+Default mode has no mode-specific configuration; it reuses the `lint` and `typecheck` sections documented on their dedicated pages.
+
+If you want to run only one part of the default flow, or learn how to configure either part, see [`lint`](/modes/lint/) or [`typecheck`](/modes/typecheck/).
+
+## When to Use It
+
+Use the default mode in most projects. It is the recommended setup because it is the simplest way to run Golar: one command runs both type-aware linting and type-checking.
+
+It can also save time compared with running `lint` and `typecheck` separately, because Golar can reuse computed checker types between type-aware linting and type-checking.
+
+Use [`lint`](/modes/lint/) or [`typecheck`](/modes/typecheck/) directly only when you need to run those steps separately.

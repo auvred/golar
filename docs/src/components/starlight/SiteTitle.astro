@@ -1,0 +1,70 @@
+---
+// Source - https://github.com/biomejs/website/blob/ac0e94fe048674ee7f76963d7f50ffc8acbf7a36/src/components/starlight/SiteTitle.astro
+// License - MIT (Copyright (c) Biome)
+
+import AstrolightSiteTitle from '@astrojs/starlight/components/SiteTitle.astro'
+
+const pathname = Astro.url.pathname
+---
+
+<div>
+  <AstrolightSiteTitle {...Astro.props} />
+
+  <div class="separator"></div>
+
+	<div class="menu-items">
+		<a
+			href="/guides/getting-started"
+			aria-current={(pathname.startsWith('/blog') || pathname === '/') ? undefined : 'page'}
+		>
+			Docs
+		</a>
+	</div>
+</div>
+
+<style>
+  div {
+    display: flex;
+    gap: var(--sl-content-pad-x);
+    align-items: center;
+  }
+
+  div.separator {
+    content: "";
+    height: 2rem;
+    border-inline-end: 1px solid var(--sl-color-gray-5);
+  }
+
+  div a {
+    text-decoration: none;
+    color: var(--sl-color-white);
+    font-size: var(--sl-text-base);
+    font-weight: 500;
+  }
+
+  div a:hover {
+    color: var(--sl-color-text-accent);
+  }
+
+  [aria-current="page"],
+  [aria-current="page"]:hover,
+  [aria-current="page"]:focus {
+    color: var(--sl-color-text-accent);
+  }
+
+  .separator {
+    display: none;
+  }
+  .menu-items {
+    display: none;
+    gap: 1rem;
+  }
+  @media (min-width: 30em) {
+    div.separator {
+      display: block;
+    }
+    div.menu-items {
+      display: flex;
+    }
+  }
+</style>

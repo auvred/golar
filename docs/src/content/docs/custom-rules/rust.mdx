@@ -1,0 +1,184 @@
+---
+title: Rust Rules
+description: Write and run a custom type-aware Rust lint rule with Golar.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+This guide shows how to write a native Rust rule, build it as a shared library, and run it with Golar on both `.ts` and `.vue` files.
+
+You will build a `rust/unsafe-calls` rule that reports any call where the called value has type `any`, then run it on the example files.
+
+:::caution
+These APIs are currently unstable. Expect breaking changes while custom-rule support is still evolving.
+:::
+
+## Install Dependencies
+
+This example uses Vue so the same rule runs on a plain TypeScript file and an embedded-language file.
+
+<PackageManagers pkg="golar @golar/vue vue" dev />
+
+Make sure Rust and Cargo are installed before continuing.
+
+## Create Example Files
+
+Create `index.ts`:
+
+```typescript
+// index.ts
+export declare const fn: any
+
+fn()
+```
+
+Create `index.vue`:
+
+```vue
+<!-- index.vue -->
+<script lang="ts" setup>
+	import { fn } from './index.ts'
+</script>
+
+<template>
+	{{ fn() }}
+</template>
+```
+
+## Create the Addon Crate
+
+Create `rust-addon/Cargo.toml`:
+
+```toml
+# rust-addon/Cargo.toml
+[package]
+name = "my_golar_rule"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+```
+
+Add dependencies:
+
+```bash
+cargo add golar
+cargo add --build napi-build
+```
+
+Create `rust-addon/build.rs`:
+
+```rust
+// rust-addon/build.rs
+
+fn main() {
+  napi_build::setup();
+}
+```
+
+Create `rust-addon/src/lib.rs`:
+
+```rust {"1. Import Golar's Rust rule API:":3-4} {"2. Walk the file and inspect every call expression:":6-15} {"3. Read the type of the called expression:":18-24} {"4. Report an error when the called value is any:":26-29} {"5. Register the rule so Golar can load it by name:":32-38}
+// rust-addon/src/lib.rs
+
+
+use golar::*;
+
+
+fn run<'a>(ctx: &RuleContext<'a>) {
+    walk(ctx.source_file.as_node(), &mut |node: Node<'_>| {
+        if let Some(call) = node.cast::<CallExpression>() {
+            check_call(ctx, call);
+        }
+
+        false
+    });
+}
+
+fn check_call<'a>(ctx: &RuleContext<'a>, node: CallExpression<'a>) {
+
+    let Some(typ) = node
+        .expression()
+        .and_then(|expression| ctx.program.get_type_at_location(&expression))
+    else {
+        return;
+    };
+
+
+    if let Some(t) = typ.cast::<IntrinsicType>() && t.intrinsic_name() == "any" {
+        ctx.report_node(node.as_node(), "Unsafe any call.");
+    }
+}
+
+
+inventory::submit! {
+    Rule {
+        name: "rust/unsafe-calls",
+        run,
+    }
+}
+```
+
+This rule does the same work as the JavaScript example: walk the AST, get the type of each called expression, and report an error when that type is `any`.
+
+The rule name in `inventory::submit!` must match the name you register in `golar.config.ts`.
+
+## Register the Rule
+
+Create `golar.config.ts`:
+
+```typescript
+// golar.config.ts
+import path from 'node:path'
+import process from 'node:process'
+
+import { defineConfig, defineNativeRule } from 'golar/unstable'
+import '@golar/vue'
+
+const addonFilename =
+	process.platform === 'win32'
+		? 'my_golar_rule.dll'
+		: process.platform === 'darwin'
+			? 'libmy_golar_rule.dylib'
+			: 'libmy_golar_rule.so'
+const addonPath = path.join(
+	import.meta.dirname,
+	'rust-addon',
+	'target',
+	'debug',
+	addonFilename,
+)
+
+export default defineConfig({
+	lint: {
+		use: [
+			{
+				files: ['index.ts', 'index.vue'],
+				rules: [
+					defineNativeRule({
+						addonPath,
+						name: 'rust/unsafe-calls',
+					}),
+				],
+			},
+		],
+	},
+})
+```
+
+## Build the Addon
+
+```bash
+cargo build --manifest-path rust-addon/Cargo.toml
+```
+
+That produces the shared library that `defineNativeRule(...)` loads.
+
+## Run the Rule
+
+Run Golar in the default mode:
+
+<PackageManagers type="exec" pkg="golar" />
+
+You should see `rust/unsafe-calls` errors for both `index.ts` and `index.vue`.

@@ -1,0 +1,47 @@
+---
+title: Astro
+description: Set up Golar for Astro projects.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+Use `@golar/astro` to add Astro support to Golar.
+
+## Install the Plugin
+
+Make sure `astro` is installed in your project.
+
+Then install the Golar plugin:
+
+<PackageManagers pkg="@golar/astro" dev />
+
+## Register the Plugin
+
+Add the plugin import to `golar.config.ts`:
+
+```typescript ins={4}
+// golar.config.ts
+
+import { defineConfig } from 'golar/unstable'
+import '@golar/astro'
+
+export default defineConfig({})
+```
+
+## Astro Prerequisite
+
+Before running Golar, run `astro sync` so Astro types are generated for your project.
+
+<PackageManagers type="exec" pkg="astro" args="sync" />
+
+## Run Golar
+
+Once the plugin is registered and Astro types are generated, run Golar in the [default mode](/modes/default/):
+
+<PackageManagers type="exec" pkg="golar" />
+
+This command loads `golar.config.ts`, runs linting, and then type-checks your project files.
+
+## Official Tooling Used
+
+Golar's Astro support is built on the official [withastro/compiler](https://github.com/withastro/compiler).

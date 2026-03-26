@@ -3,4 +3,5 @@ dist/
 /golar
 /golar.exe
 /packages/vue/src/typescript-lite.js
-.DS_Store
+.DS_Store/
+.astro/

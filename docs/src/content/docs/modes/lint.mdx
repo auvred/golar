@@ -1,0 +1,52 @@
+---
+title: Lint
+description: Run only Golar lint rules without type-checking.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+`golar lint` runs lint rules and skips type-checking.
+
+<PackageManagers type="exec" pkg="golar" args="lint" />
+
+## What It Does
+
+`lint` loads `golar.config.ts`, resolves files from `lint.use`, creates a workspace for those files, and runs every configured lint rule.
+
+Golar supports three kinds of lint rules in this mode:
+
+- builtin rules bundled with `golar`
+- custom JavaScript rules
+- native rules loaded from addons
+
+## Configuration
+
+Lint mode reads only the `lint` section of `golar.config.ts`.
+
+```typescript
+import { defineConfig } from 'golar/unstable'
+
+export default defineConfig({
+	lint: {
+		use: [
+			{
+				files: ['src/**/*.ts'],
+				rules: [],
+			},
+		],
+	},
+})
+```
+
+Each entry in `lint.use` declares:
+
+- `files`: the glob patterns to lint
+- `rules`: the rules that should run for matching files
+
+Those rules can come from Golar builtin rules, custom JavaScript rules, or native addons.
+
+For end-to-end examples, see [JavaScript rules](/custom-rules/javascript/) and [Rust rules](/custom-rules/rust/).
+
+## When to Use It
+
+Use `lint` when you want lint errors only, or when linting and type-checking run as separate CI steps. Otherwise, the [default mode](/modes/default/) is preferred.

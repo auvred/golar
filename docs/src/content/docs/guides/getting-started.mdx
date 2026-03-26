@@ -1,0 +1,71 @@
+---
+title: Getting Started
+description: Learn how to set up Golar in your project.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components'
+import { PackageManagers } from 'starlight-package-managers'
+
+## Installation
+
+First, you need to install `golar` package.
+
+<PackageManagers pkg="golar" dev />
+
+Golar loads `golar.config.ts` from the current working directory, so start by creating that file.
+
+In the root of your repository create a file named `golar.config.ts`:
+
+```typescript
+// golar.config.ts
+import { defineConfig } from 'golar/unstable'
+
+export default defineConfig({})
+```
+
+Next, open the guide for the language you're using.
+
+You can also register multiple language plugins in the same `golar.config.ts` file if your project mixes frameworks.
+
+## Language Guides
+
+<CardGrid>
+	<LinkCard
+		title="Astro"
+		href="/languages/astro/"
+		description="Set up the Astro plugin, and use Golar with .astro files."
+	/>
+	<LinkCard
+		title="Ember"
+		href="/languages/ember/"
+		description="Set up the Ember plugin, and use Golar with .gts files."
+	/>
+	<LinkCard
+		title="Svelte"
+		href="/languages/svelte/"
+		description="Set up the Svelte plugin, and use Golar with .svelte files."
+	/>
+	<LinkCard
+		title="Vue"
+		href="/languages/vue/"
+		description="Set up the Vue plugin, and use Golar with .vue files."
+	/>
+</CardGrid>
+
+## Usage
+
+:::caution
+Golar bundles TypeScript 7.0, which includes several breaking changes compared with TypeScript 5.9.
+If you're migrating an existing project to Golar, review the [breaking changes and deprecations introduced since TypeScript 6.0](https://devblogs.microsoft.com/typescript/announcing-typescript-6-0/#breaking-changes-and-deprecations-in-typescript-6.0) and adjust your project as needed.
+:::
+
+Golar CLI has four modes.
+
+The default mode is recommended for most projects.
+To run Golar CLI in the default mode, call `golar` CLI without any command line arguments.
+
+<PackageManagers type="exec" pkg="golar" />
+
+This command locates `golar.config.ts`, loads all language plugins and lint rules, runs linting and then type-checks all project files.
+
+See the mode docs for command-specific behavior and configuration: [default mode](/modes/default/), [`lint`](/modes/lint/), [`typecheck`](/modes/typecheck/), and [`tsc`](/modes/tsc/).

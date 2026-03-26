@@ -1,0 +1,43 @@
+---
+title: Typecheck
+description: Run Golar type-checking without linting.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+`golar typecheck` runs semantic type-checking and skips linting.
+
+<PackageManagers type="exec" pkg="golar" args="typecheck" />
+
+## What It Does
+
+`typecheck` loads `golar.config.ts`, resolves the files matched by `typecheck.include` and `typecheck.exclude`, then reports errors for those files.
+
+Unlike `tsc`, it is not limited to files included by `tsconfig.json`.
+It checks all files Golar discovers, even when they are outside `tsconfig.json`'s `files` or `include` lists.
+This matches how the TypeScript LSP reports errors in IDEs, because Golar uses the same project service approach.
+That way, you can be confident you are not missing type errors in files that still exist in your project.
+
+This includes plain TypeScript files and any embedded-language files supported by installed Golar plugins.
+For example, if your config imports `@golar/astro` and `@golar/vue`, `typecheck` reports TypeScript errors for all `**/*.astro`, `**/*.ts`, and `**/*.vue` files in your project.
+
+## Configuration
+
+Typecheck mode reads the `typecheck` section of `golar.config.ts`.
+
+```typescript
+import { defineConfig } from 'golar/unstable'
+import '@golar/astro'
+import '@golar/vue'
+
+export default defineConfig({
+	typecheck: {
+		include: ['./src/**/*.{astro,ts,tsx,vue}'],
+		exclude: ['./src/generated/**', '**/dist'],
+	},
+})
+```
+
+## When to Use It
+
+Use `typecheck` when you only need compiler errors, or when linting is handled by a separate command. Otherwise, the [default mode](/modes/default/) is preferred.

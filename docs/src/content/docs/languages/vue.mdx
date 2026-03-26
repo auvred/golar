@@ -1,0 +1,53 @@
+---
+title: Vue
+description: Set up Golar for Vue projects.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+Use `@golar/vue` to add Vue support to Golar.
+
+## Install the Plugin
+
+Make sure `vue` is installed in your project.
+
+Then install the Golar plugin:
+
+<PackageManagers pkg="@golar/vue" dev />
+
+## Register the Plugin
+
+Add the plugin import to `golar.config.ts`:
+
+```typescript ins={4}
+// golar.config.ts
+
+import { defineConfig } from 'golar/unstable'
+import '@golar/vue'
+
+export default defineConfig({})
+```
+
+## Run Golar
+
+Once the plugin is registered, run Golar in the [default mode](/modes/default/):
+
+<PackageManagers type="exec" pkg="golar" />
+
+This command loads `golar.config.ts`, runs linting, and then type-checks your project files.
+
+## Declaration Emit
+
+If you need declaration emit for Vue files, use [`tsc`](/modes/tsc/) mode:
+
+<PackageManagers
+	type="exec"
+	pkg="golar"
+	args="tsc --declaration --emitDeclarationOnly"
+/>
+
+This emits `.vue.d.ts` files for Vue components.
+
+## Official Tooling Used
+
+Golar's Vue support is built on the official [@vue/language-core](https://github.com/vuejs/language-tools/tree/master/packages/language-core) package.

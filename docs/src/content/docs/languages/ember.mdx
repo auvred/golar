@@ -1,0 +1,49 @@
+---
+title: Ember
+description: Set up Golar for Ember projects.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+Use `@golar/ember` to add Ember support to Golar.
+
+## Install the Plugin
+
+<PackageManagers pkg="@golar/ember" dev />
+
+## Register the Plugin
+
+Add the plugin import to `golar.config.ts`:
+
+```typescript ins={4}
+// golar.config.ts
+
+import { defineConfig } from 'golar/unstable'
+import '@golar/ember'
+
+export default defineConfig({})
+```
+
+## Run Golar
+
+Once the plugin is registered, run Golar in the [default mode](/modes/default/):
+
+<PackageManagers type="exec" pkg="golar" />
+
+This command loads `golar.config.ts`, runs linting, and then type-checks your project files.
+
+## Declaration Emit
+
+If you need declaration emit for Ember files, use [`tsc`](/modes/tsc/) mode:
+
+<PackageManagers
+	type="exec"
+	pkg="golar"
+	args="tsc --declaration --emitDeclarationOnly"
+/>
+
+This emits `.d.ts` files for Ember components.
+
+## Official Tooling Used
+
+Golar's Ember support is built on the official [@glint/ember-tsc](https://github.com/typed-ember/glint/tree/main/packages/ember-tsc) package.

@@ -1,13 +1,13 @@
 ---
-title: Home page
-description: Get started building your docs site with Starlight.
+title: Golar Docs
+description: Native-speed type-aware linting and type-checking for TypeScript-based languages, powered by typescript-go.
 template: splash
 hero:
   title: Golar
-  tagline: Embedded languages framework based on typescript-go
+  tagline: Native-speed type-aware linting and type-checking for TypeScript-based languages, powered by typescript-go.
   actions:
     - text: Get started
-      link: /about/getting-started/
+      link: /guides/getting-started/
       icon: right-arrow
     - text: View on GitHub
       link: https://github.com/auvred/golar
@@ -15,26 +15,50 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
 
-## Next steps
+:::note
+Golar is under active development. Type-checking can be already used today, while linting APIs, custom rules, and future LSP support are still evolving.
+:::
+
+## Start Here
 
 <CardGrid>
-	<Card title="Update content" icon="pencil">
-		Edit `src/content/docs/index.mdx` to see this page change.
-	</Card>
-	<Card title="Change page layout" icon="document">
-		Delete `template: splash` in `src/content/docs/index.mdx` to display a
-		sidebar on this page.
-	</Card>
-	<Card title="Add new content" icon="add-document">
-		Add Markdown or MDX files to `src/content/docs` to create new pages.
-	</Card>
-	<Card title="Configure your site" icon="setting">
-		Edit your `sidebar` and other config in `astro.config.mjs`.
-	</Card>
-	<Card title="Read the docs" icon="open-book">
-		Learn more in [the Starlight Docs](https://starlight.astro.build/).
-	</Card>
+	<LinkCard
+		title="Getting Started"
+		href="/guides/getting-started/"
+		description="Install Golar, create a config file, and run your first project check."
+	/>
+	<LinkCard
+		title="Run Modes"
+		href="/modes/default/"
+		description="Learn when to use the default, lint, typecheck, and tsc workflows."
+	/>
+	<LinkCard
+		title="Custom Rules"
+		href="/custom-rules/javascript/"
+		description="Author type-aware lint rules in JavaScript or Rust on top of Golar."
+	/>
+	<LinkCard
+		title="Roadmap"
+		href="/blog/golar-gets-a-linter/"
+		description="Read the first roadmap post covering Golar's linter, architecture, and next steps."
+	/>
 </CardGrid>
 
+## Why Golar
+
+<CardGrid>
+	<Card title="One command by default">
+		Run linting and type-checking together with a single `golar` command and
+		reuse compiler work across both steps.
+	</Card>
+	<Card title="Plugin-based language support">
+		Add support for Astro, Ember, Svelte, and Vue through language plugins
+		instead of maintaining separate CLI flows.
+	</Card>
+	<Card title="Type-aware custom rules">
+		Build custom lint rules in JavaScript or Rust and query type information
+		directly from typescript-go.
+	</Card>
+</CardGrid>

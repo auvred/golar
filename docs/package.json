@@ -1,17 +1,20 @@
 {
-  "type": "module",
+	"type": "module",
 	"private": true,
-  "scripts": {
-    "dev": "astro dev",
-    "start": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "astro": "astro"
-  },
-  "dependencies": {
-    "@astrojs/starlight": "^0.38.2",
-    "astro": "^6.0.8",
-    "sharp": "^0.34.5",
-    "zod": "^4.3.6"
-  }
+	"scripts": {
+		"dev": "astro dev",
+		"start": "astro dev",
+		"build": "astro build",
+		"preview": "astro preview",
+		"astro": "astro"
+	},
+	"dependencies": {
+		"@astrojs/starlight": "^0.38.2",
+		"astro": "^6.0.8",
+		"sharp": "^0.34.5",
+		"starlight-blog": "^0.26.1",
+		"starlight-links-validator": "^0.20.1",
+		"starlight-package-managers": "^0.12.0",
+		"zod": "^4.3.6"
+	}
 }

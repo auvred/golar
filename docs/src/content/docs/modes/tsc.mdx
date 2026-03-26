@@ -1,0 +1,49 @@
+---
+title: TSC
+description: Pass compiler flags directly to Golar's compiler mode.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+`golar tsc` forwards the remaining command-line arguments to Golar's compiler mode.
+
+<PackageManagers type="exec" pkg="golar" args="tsc" />
+
+## What It Does
+
+Unlike the other CLI modes, `tsc` is compiler-first.
+It registers Golar code generation plugins and then passes the remaining arguments to the bundled TypeScript compiler.
+
+Use this mode when you need compiler behavior such as declaration emit, build mode, or other direct compiler flags.
+
+## Examples
+
+Type-check without emitting files:
+
+```bash
+golar tsc --noEmit
+```
+
+Emit declaration files only:
+
+```bash
+golar tsc --declaration --emitDeclarationOnly
+```
+
+Use build mode:
+
+```bash
+golar tsc --build --noEmit
+```
+
+For framework-specific compiler workflows such as Ember or Vue declaration emit, see the [Ember](/languages/ember/) and [Vue](/languages/vue/) language guides.
+
+## Configuration
+
+`tsc` still loads `golar.config.ts` so Golar can register the embedded-language plugins used by your project.
+
+## When to Use It
+
+Use `tsc` when you already know which compiler flags you need and want behavior closer to a direct compiler invocation.
+
+For most projects, the [default mode](/modes/default/) is a better starting point.

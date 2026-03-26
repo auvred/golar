@@ -1,0 +1,41 @@
+---
+title: Svelte
+description: Set up Golar for Svelte projects.
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+Use `@golar/svelte` to add Svelte support to Golar.
+
+## Install the Plugin
+
+Make sure `svelte` is installed in your project.
+
+Then install the Golar plugin:
+
+<PackageManagers pkg="@golar/svelte" dev />
+
+## Register the Plugin
+
+Add the plugin import to `golar.config.ts`:
+
+```typescript ins={4}
+// golar.config.ts
+
+import { defineConfig } from 'golar/unstable'
+import '@golar/svelte'
+
+export default defineConfig({})
+```
+
+## Run Golar
+
+Once the plugin is registered, run Golar in the [default mode](/modes/default/):
+
+<PackageManagers type="exec" pkg="golar" />
+
+This command loads `golar.config.ts`, runs linting, and then type-checks your project files.
+
+## Official Tooling Used
+
+Golar's Svelte support is built on the official [svelte2tsx](https://github.com/sveltejs/language-tools/tree/master/packages/svelte2tsx) package.
