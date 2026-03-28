@@ -2,7 +2,7 @@
 	"packageManager": "pnpm@10.28.0",
 	"type": "module",
 	"private": true,
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"scripts": {
 		"check": "golar",
 		"format": "prettier -w . && go fmt ./cmd/... ./internal/... ./plugin/... && cd packages/astro && go fmt . && cargo fmt --all",
