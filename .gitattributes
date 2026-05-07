@@ -1,1 +1,3 @@
 * text=auto eol=lf
+
+crates/golar/src/*_generated linguist-generated=true
