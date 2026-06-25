@@ -48,7 +48,7 @@ impl SymbolFlags {
     pub const FUNCTION_SCOPED_VARIABLE_EXCLUDES: Self = Self(111550);
     pub const BLOCK_SCOPED_VARIABLE_EXCLUDES: Self = Self(111551);
     pub const PARAMETER_EXCLUDES: Self = Self(111551);
-    pub const PROPERTY_EXCLUDES: Self = Self(111547);
+    pub const PROPERTY_EXCLUDES: Self = Self(13243);
     pub const ENUM_MEMBER_EXCLUDES: Self = Self(900095);
     pub const FUNCTION_EXCLUDES: Self = Self(110991);
     pub const CLASS_EXCLUDES: Self = Self(899503);
@@ -58,9 +58,9 @@ impl SymbolFlags {
     pub const VALUE_MODULE_EXCLUDES: Self = Self(110735);
     pub const NAMESPACE_MODULE_EXCLUDES: Self = Self(0);
     pub const METHOD_EXCLUDES: Self = Self(103359);
-    pub const GET_ACCESSOR_EXCLUDES: Self = Self(46015);
-    pub const SET_ACCESSOR_EXCLUDES: Self = Self(78783);
-    pub const ACCESSOR_EXCLUDES: Self = Self(111551);
+    pub const GET_ACCESSOR_EXCLUDES: Self = Self(46011);
+    pub const SET_ACCESSOR_EXCLUDES: Self = Self(78779);
+    pub const ACCESSOR_EXCLUDES: Self = Self(111547);
     pub const TYPE_PARAMETER_EXCLUDES: Self = Self(526824);
     pub const TYPE_ALIAS_EXCLUDES: Self = Self(788968);
     pub const ALIAS_EXCLUDES: Self = Self(2097152);
@@ -544,6 +544,8 @@ impl ObjectFlags {
     pub const IS_CLASS_INSTANCE_CLONE: Self = Self(67108864);
     pub const IDENTICAL_BASE_TYPE_CALCULATED: Self = Self(134217728);
     pub const IDENTICAL_BASE_TYPE_EXISTS: Self = Self(268435456);
+    pub const UNRESOLVED_MEMBERS: Self = Self(536870912);
+    pub const FROM_TYPE_NODE: Self = Self(1073741824);
     pub const IS_GENERIC_TYPE_COMPUTED: Self = Self(4194304);
     pub const IS_GENERIC_OBJECT_TYPE: Self = Self(8388608);
     pub const IS_GENERIC_INDEX_TYPE: Self = Self(16777216);
@@ -800,6 +802,15 @@ impl std::ops::BitAndAssign for SignatureFlags {
     fn bitand_assign(&mut self, rhs: Self) {
         self.0 &= rhs.0;
     }
+}
+
+#[repr(i32)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum TypePredicateKind {
+    This = 0,
+    Identifier = 1,
+    AssertsThis = 2,
+    AssertsIdentifier = 3,
 }
 
 #[repr(i16)]
@@ -1115,58 +1126,45 @@ pub enum Kind {
     SourceFile = 307,
     JSDocTypeExpression = 308,
     JSDocNameReference = 309,
-    JSDocMemberName = 310,
-    JSDocAllType = 311,
-    JSDocNullableType = 312,
-    JSDocNonNullableType = 313,
-    JSDocOptionalType = 314,
-    JSDocVariadicType = 315,
-    JSDoc = 316,
-    JSDocText = 317,
-    JSDocTypeLiteral = 318,
-    JSDocSignature = 319,
-    JSDocLink = 320,
-    JSDocLinkCode = 321,
-    JSDocLinkPlain = 322,
-    JSDocTag = 323,
-    JSDocAugmentsTag = 324,
-    JSDocImplementsTag = 325,
-    JSDocDeprecatedTag = 326,
-    JSDocPublicTag = 327,
-    JSDocPrivateTag = 328,
-    JSDocProtectedTag = 329,
-    JSDocReadonlyTag = 330,
-    JSDocOverrideTag = 331,
-    JSDocCallbackTag = 332,
-    JSDocOverloadTag = 333,
-    JSDocParameterTag = 334,
-    JSDocReturnTag = 335,
-    JSDocThisTag = 336,
-    JSDocTypeTag = 337,
-    JSDocTemplateTag = 338,
-    JSDocTypedefTag = 339,
-    JSDocSeeTag = 340,
-    JSDocPropertyTag = 341,
-    JSDocThrowsTag = 342,
-    JSDocSatisfiesTag = 343,
-    JSDocImportTag = 344,
-    SyntaxList = 345,
-    JSTypeAliasDeclaration = 346,
-    JSExportAssignment = 347,
-    CommonJSExport = 348,
-    JSImportDeclaration = 349,
-    NotEmittedStatement = 350,
-    PartiallyEmittedExpression = 351,
-    CommaListExpression = 352,
-    SyntheticReferenceExpression = 353,
-    NotEmittedTypeElement = 354,
-}
-
-#[repr(i32)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum TypePredicateKind {
-    This = 0,
-    Identifier = 1,
-    AssertsThis = 2,
-    AssertsIdentifier = 3,
+    JSDocAllType = 310,
+    JSDocNullableType = 311,
+    JSDocNonNullableType = 312,
+    JSDocOptionalType = 313,
+    JSDocVariadicType = 314,
+    JSDoc = 315,
+    JSDocText = 316,
+    JSDocTypeLiteral = 317,
+    JSDocSignature = 318,
+    JSDocLink = 319,
+    JSDocLinkCode = 320,
+    JSDocLinkPlain = 321,
+    JSDocUnknownTag = 322,
+    JSDocAugmentsTag = 323,
+    JSDocImplementsTag = 324,
+    JSDocDeprecatedTag = 325,
+    JSDocPublicTag = 326,
+    JSDocPrivateTag = 327,
+    JSDocProtectedTag = 328,
+    JSDocReadonlyTag = 329,
+    JSDocOverrideTag = 330,
+    JSDocCallbackTag = 331,
+    JSDocOverloadTag = 332,
+    JSDocParameterTag = 333,
+    JSDocReturnTag = 334,
+    JSDocThisTag = 335,
+    JSDocTypeTag = 336,
+    JSDocTemplateTag = 337,
+    JSDocTypedefTag = 338,
+    JSDocSeeTag = 339,
+    JSDocPropertyTag = 340,
+    JSDocThrowsTag = 341,
+    JSDocSatisfiesTag = 342,
+    JSDocImportTag = 343,
+    SyntaxList = 344,
+    JSTypeAliasDeclaration = 345,
+    JSImportDeclaration = 346,
+    NotEmittedStatement = 347,
+    PartiallyEmittedExpression = 348,
+    SyntheticReferenceExpression = 349,
+    NotEmittedTypeElement = 350,
 }

@@ -13,4 +13,7 @@ If behavior changed in any of them, review and optionally adjust:
 - `internal/linter/create_programs.go`
 - `internal/linter/create_programs_test.go`
 
-TODO: mention other things
+Also check AST generator metadata changes:
+
+- If `thirdparty/typescript-go/_scripts/ast.json` changes a node with `handWrittenVisitor: true`, update the matching custom handling in `tools/gen-rust-ast`.
+- Compare against the handwritten visitor implementation in `thirdparty/typescript-go/pkg/ast/ast.go` and any generated delegation in `thirdparty/typescript-go/pkg/ast/ast_generated.go`.

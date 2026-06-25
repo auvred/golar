@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"unsafe"
 
@@ -15,6 +17,7 @@ import (
 )
 
 const tsgoInternalPrefix = "github.com/microsoft/typescript-go/pkg/"
+const tsgoAstSchemaPath = "thirdparty/typescript-go/_scripts/ast.json"
 const rustGeneratedDir = "crates/golar/src"
 
 // TODO
@@ -42,7 +45,121 @@ type flagTypeSpec struct {
 	enum     bool
 }
 
+type astSchema struct {
+	Kinds schemaKinds           `json:"kinds"`
+	Bases map[string]schemaBase `json:"bases"`
+	Nodes schemaNodes           `json:"nodes"`
+}
+
+type schemaKinds struct {
+	Elements []schemaKindElement        `json:"elements"`
+	Markers  []schemaKindMarker         `json:"markers"`
+	Aliases  map[string]json.RawMessage `json:"aliases"`
+}
+
+type schemaKindElement struct {
+	Name    string `json:"name"`
+	Comment string `json:"comment"`
+}
+
+func (e *schemaKindElement) UnmarshalJSON(data []byte) error {
+	var name string
+	if err := json.Unmarshal(data, &name); err == nil {
+		e.Name = name
+		return nil
+	}
+
+	type object schemaKindElement
+	return json.Unmarshal(data, (*object)(e))
+}
+
+type schemaKindMarker struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type schemaNodes struct {
+	Definitions map[string]schemaNodeDef   `json:"definitions"`
+	Aliases     map[string]json.RawMessage `json:"aliases"`
+	ListAliases map[string]string          `json:"listAliases"`
+}
+
+type schemaNodeDef struct {
+	Kind                 schemaTypeNames       `json:"kind"`
+	Extends              []string              `json:"extends"`
+	Members              []schemaMember        `json:"members"`
+	HandWritten          bool                  `json:"handWritten"`
+	HandWrittenVisitor   bool                  `json:"handWrittenVisitor"`
+	TypeParameters       []schemaTypeParameter `json:"typeParameters"`
+	InstantiationAliases map[string]string     `json:"instantiationAliases"`
+}
+
+type schemaBase struct {
+	Extends []string                   `json:"extends"`
+	Fields  map[string]schemaBaseField `json:"fields"`
+}
+
+type schemaMember struct {
+	Name      string          `json:"name"`
+	Type      schemaTypeNames `json:"type"`
+	List      string          `json:"list"`
+	Inherited bool            `json:"inherited"`
+	GoOnly    bool            `json:"goOnly"`
+	NoFactory bool            `json:"noFactory"`
+}
+
+type schemaBaseField struct {
+	Type      schemaTypeNames `json:"type"`
+	List      string          `json:"list"`
+	GoOnly    bool            `json:"goOnly"`
+	NoFactory bool            `json:"noFactory"`
+}
+
+type schemaTypeParameter struct {
+	Name       string `json:"name"`
+	Constraint string `json:"constraint"`
+	Default    string `json:"default"`
+}
+
+type schemaTypeNames []string
+
+func (t *schemaTypeNames) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+
+	var name string
+	if err := json.Unmarshal(data, &name); err == nil {
+		*t = []string{name}
+		return nil
+	}
+
+	var names []string
+	if err := json.Unmarshal(data, &names); err != nil {
+		return err
+	}
+	*t = names
+	return nil
+}
+
+type resolvedSchemaMember struct {
+	name      string
+	types     []string
+	list      string
+	goOnly    bool
+	noFactory bool
+}
+
 func main() {
+	schemaJSON, err := os.ReadFile(tsgoAstSchemaPath)
+	if err != nil {
+		panic(err)
+	}
+	var schema astSchema
+	if err := json.Unmarshal(schemaJSON, &schema); err != nil {
+		panic(err)
+	}
+
 	pkgs, err := packages.Load(&packages.Config{
 		Mode: packages.LoadSyntax,
 	}, tsgoInternalPrefix+"ast", tsgoInternalPrefix+"checker")
@@ -72,18 +189,10 @@ func main() {
 	checkerScope := checkerPkg.Types.Scope()
 	typeType := checkerScope.Lookup("Type").Type().(*types.Named)
 
-	var astFile *ast.File
-	var kindFile *ast.File
 	var symbolFlagsFile *ast.File
 	var checkFlagsFile *ast.File
 	var modifierFlagsFile *ast.File
 	for i, file := range astPkg.Syntax {
-		if strings.HasSuffix(astPkg.CompiledGoFiles[i], "pkg/ast/ast.go") {
-			astFile = file
-		}
-		if strings.HasSuffix(astPkg.CompiledGoFiles[i], "pkg/ast/kind.go") {
-			kindFile = file
-		}
 		if strings.HasSuffix(astPkg.CompiledGoFiles[i], "pkg/ast/symbolflags.go") {
 			symbolFlagsFile = file
 		}
@@ -93,12 +202,6 @@ func main() {
 		if strings.HasSuffix(astPkg.CompiledGoFiles[i], "pkg/ast/modifierflags.go") {
 			modifierFlagsFile = file
 		}
-	}
-	if astFile == nil {
-		panic("could not locate pkg/ast/ast.go")
-	}
-	if kindFile == nil {
-		panic("could not locate pkg/ast/kind.go")
 	}
 	if symbolFlagsFile == nil {
 		panic("could not locate pkg/ast/symbolflags.go")
@@ -160,118 +263,15 @@ use crate::flags_generated::*;
 		flagTypeSpec{typeName: "ElementFlags", file: checkerTypesFile, scope: checkerScope},
 		flagTypeSpec{typeName: "IndexFlags", file: checkerTypesFile, scope: checkerScope},
 		flagTypeSpec{typeName: "SignatureFlags", file: checkerTypesFile, scope: checkerScope},
-		flagTypeSpec{typeName: "Kind", file: kindFile, scope: astScope, stop: func(name string) bool { return name == "Count" }, enum: true},
 		flagTypeSpec{typeName: "TypePredicateKind", file: checkerTypesFile, scope: checkerScope, enum: true},
 	)
+	fmt.Fprintf(&flagsOut, "#[repr(i16)]\n#[derive(Debug, Copy, Clone, PartialEq, Eq)]\npub enum Kind {\n")
+	for _, entry := range schema.kindElements() {
+		fmt.Fprintf(&flagsOut, "\t%s = %s,\n", rustKeyword(entry.name), entry.value)
+	}
+	flagsOut.WriteString("}\n\n")
 
-	ast.Inspect(astFile, func(n ast.Node) bool {
-		fd, ok := n.(*ast.FuncDecl)
-		if !ok || fd.Name.Name != "ForEachChild" {
-			return true
-		}
-
-		retStmt, ok := fd.Body.List[0].(*ast.ReturnStmt)
-		recvName := fd.Recv.List[0].Type.(*ast.StarExpr).X.(*ast.Ident).Name
-		originalRecvName := recvName
-		switch recvName {
-		case "SourceFile":
-			fmt.Fprintf(&visitorCases, `			Kind::SourceFile => {
-				let node = unsafe { SourceFile::from_node_unchecked(node) };
-				visit_node_list(f, unsafe { (*node.raw).statements.cast() })
-			},
-`)
-			return true
-		case "FunctionOrConstructorTypeNodeBase":
-			recvName = "FunctionTypeNode"
-		case "UnionOrIntersectionTypeNodeBase":
-			recvName = "UnionTypeNode, IntersectionTypeNode"
-		case "AccessorDeclarationBase":
-			recvName = "GetAccessorDeclaration, SetAccessorDeclaration"
-		case "ClassLikeBase":
-			recvName = "ClassDeclaration, ClassExpression"
-		}
-		if originalRecvName == "JSDocParameterOrPropertyTag" || originalRecvName == "JSDocTypedefTag" {
-			if ok {
-				panic("expected custom ForEachChild receiver " + originalRecvName + " to bypass default return path")
-			}
-
-			kinds := kindValuesForNode(astScope, originalRecvName)
-			var kindPattern strings.Builder
-			for i, kind := range kinds {
-				if i > 0 {
-					kindPattern.WriteString(" | ")
-				}
-				fmt.Fprintf(&kindPattern, "Kind::%v", kind.name)
-			}
-
-			if originalRecvName == "JSDocParameterOrPropertyTag" {
-				fmt.Fprintf(&visitorCases, `			%s => {
-				let node = unsafe { %v::from_node_unchecked(node) };
-				if unsafe { (*node.raw).isNameFirst } != 0 {
-					visit_node(f, unsafe { (*node.raw).tagName }) || visit_node(f, unsafe { (*node.raw).name }) || visit_node(f, unsafe { (*node.raw).typeExpression }) || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-				} else {
-					visit_node(f, unsafe { (*node.raw).tagName }) || visit_node(f, unsafe { (*node.raw).typeExpression }) || visit_node(f, unsafe { (*node.raw).name }) || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-				}
-			},
-`, kindPattern.String(), originalRecvName)
-			} else {
-				if astScope.Lookup("KindJSDocTypeLiteral") == nil {
-					panic("missing kind constant KindJSDocTypeLiteral")
-				}
-				fmt.Fprintf(&visitorCases, `			%s => {
-				let node = unsafe { %v::from_node_unchecked(node) };
-				let type_expression = unsafe { (*node.raw).typeExpression };
-				if !type_expression.is_null() && unsafe { (*type_expression).kind } == Kind::JSDocTypeLiteral {
-					visit_node(f, unsafe { (*node.raw).tagName }) || visit_node(f, unsafe { (*node.raw).name }) || visit_node(f, type_expression) || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-				} else {
-					visit_node(f, unsafe { (*node.raw).tagName }) || visit_node(f, type_expression) || visit_node(f, unsafe { (*node.raw).name }) || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-				}
-			},
-`, kindPattern.String(), originalRecvName)
-			}
-			return true
-		}
-		if !ok {
-			panic("can't translate ForEachChild receiver " + recvName)
-		}
-
-		var visits []childVisit
-		collectVisitCalls(retStmt.Results[0], &visits)
-		if len(visits) == 0 {
-			return true
-		}
-
-		for recvName := range strings.SplitSeq(recvName, ", ") {
-			kinds := kindValuesForNode(astScope, recvName)
-			var kindPattern strings.Builder
-			for i, kind := range kinds {
-				if i > 0 {
-					kindPattern.WriteString(" | ")
-				}
-				fmt.Fprintf(&kindPattern, "Kind::%v", kind.name)
-			}
-			var visitExpr strings.Builder
-			for i, visit := range visits {
-				if i > 0 {
-					visitExpr.WriteString(" || ")
-				}
-
-				fieldName := rustFieldName(visit.call.Args[1].(*ast.SelectorExpr).Sel.Name)
-				if visit.list {
-					fmt.Fprintf(&visitExpr, "visit_node_list(f, unsafe { (*node.raw).%v.cast() })", fieldName)
-				} else {
-					fmt.Fprintf(&visitExpr, "visit_node(f, unsafe { (*node.raw).%v })", fieldName)
-				}
-			}
-			fmt.Fprintf(&visitorCases, `			%s => {
-				let node = unsafe { %v::from_node_unchecked(node) };
-				%s
-			},
-`, kindPattern.String(), recvName, visitExpr.String())
-		}
-
-		return true
-	})
+	writeSchemaVisitorCases(&visitorCases, &schema)
 
 	writeVisitor(&astOut, visitorCases.Bytes())
 
@@ -290,34 +290,74 @@ use crate::flags_generated::*;
 		nodeName := returnType.Obj().Name()
 		nodeStruct := returnType.Underlying().(*types.Struct)
 
-		if methodName == "AsTypeReferenceNode" {
-			continue // duplicate
-		}
-
-		kinds := kindValuesForNode(astScope, nodeName)
+		kinds := schema.kindValuesForNode(nodeName)
 		if len(kinds) == 0 {
 			continue
 		}
 
 		var fields []fieldInfo
-		lastOffset := sizes.Sizeof(nodeType.Underlying())
+		nodeOffset, ok := embeddedNodeOffset(nodeStruct, 0)
+		if !ok {
+			panic("could not locate embedded Node for " + nodeName)
+		}
+		lastOffset := int64(0)
 		padIndex := 0
+		nodeEmitted := false
+		seenRawFields := map[string]bool{"node": true}
 
-		fmt.Fprintf(&nodes, "#[repr(C)]\n#[derive(Copy, Clone)]\npub struct Raw%v {\n\tpub node: RawNode,\n", nodeName)
+		fmt.Fprintf(&nodes, "#[repr(C)]\n#[derive(Copy, Clone)]\npub struct Raw%v {\n", nodeName)
 
 		emitPadding := func(offset int64, size types.Type) {
 			padding := offset - lastOffset
+			if padding < 0 {
+				panic(fmt.Sprintf("negative padding for %v at offset %v after %v", nodeName, offset, lastOffset))
+			}
 			if padding != 0 {
 				fmt.Fprintf(&nodes, "\tpub _pad%v: [u8; %v],\n", padIndex, padding)
 				padIndex++
 			}
 			lastOffset = offset + sizes.Sizeof(size)
 		}
+		emitOpaqueField := func(offset int64, size types.Type) {
+			padding := offset - lastOffset
+			if padding < 0 {
+				panic(fmt.Sprintf("negative opaque padding for %v at offset %v after %v", nodeName, offset, lastOffset))
+			}
+			if padding != 0 {
+				fmt.Fprintf(&nodes, "\tpub _pad%v: [u8; %v],\n", padIndex, padding)
+				padIndex++
+			}
+			fieldSize := sizes.Sizeof(size)
+			if fieldSize != 0 {
+				fmt.Fprintf(&nodes, "\tpub _pad%v: [u8; %v],\n", padIndex, fieldSize)
+				padIndex++
+			}
+			lastOffset = offset + fieldSize
+		}
+		emitNode := func() {
+			if nodeEmitted {
+				return
+			}
+			padding := nodeOffset - lastOffset
+			if padding < 0 {
+				panic(fmt.Sprintf("embedded Node overlaps previous fields for %v", nodeName))
+			}
+			if padding != 0 {
+				fmt.Fprintf(&nodes, "\tpub _pad%v: [u8; %v],\n", padIndex, padding)
+				padIndex++
+			}
+			nodes.WriteString("\tpub node: RawNode,\n")
+			lastOffset = nodeOffset + sizes.Sizeof(nodeType.Underlying())
+			nodeEmitted = true
+		}
 
 		iterStructFields(nodeStruct, 0, func(field *types.Var) bool {
 			if nodeName == "SourceFile" {
+				if field.Embedded() {
+					return true
+				}
 				switch field.Name() {
-				case "text", "Statements":
+				case "text", "Statements", "EndOfFileToken":
 				default:
 					return false
 				}
@@ -335,18 +375,29 @@ use crate::flags_generated::*;
 			}
 			return true
 		}, func(field *types.Var, offset int64) {
+			if !nodeEmitted && offset >= nodeOffset {
+				emitNode()
+			}
+
 			mapped, ok := mapField(field)
 			if !ok {
 				panic(fmt.Sprintf("ERROR: unknown field type for %v.%v: %v\n", nodeName, field.Name(), field.Type()))
 			}
 			if mapped.skip {
+				emitOpaqueField(offset, field.Type())
 				return
 			}
+			if seenRawFields[mapped.rawName] {
+				emitOpaqueField(offset, field.Type())
+				return
+			}
+			seenRawFields[mapped.rawName] = true
 
 			emitPadding(offset, field.Type())
 			fmt.Fprintf(&nodes, "\tpub %v: %v,\n", mapped.rawName, mapped.rawType)
 			fields = append(fields, mapped)
 		})
+		emitNode()
 
 		nodes.WriteString("}\n\n")
 
@@ -360,7 +411,7 @@ pub struct %v<'a> {
 impl<'a> %v<'a> {
 	#[inline(always)]
 	pub fn as_node(self) -> Node<'a> {
-		Node::from_raw(self.raw.cast())
+		Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
 	}
 `, nodeName, nodeName, nodeName)
 		for _, field := range fields {
@@ -379,6 +430,10 @@ pub fn %v(self) -> %v {
 			}
 			fmt.Fprintf(&kindPattern, "Kind::%v", kind.name)
 		}
+		rawCastExpr := "node.raw.cast()"
+		if nodeOffset != 0 {
+			rawCastExpr = fmt.Sprintf("unsafe { node.raw.cast::<u8>().sub(%d).cast() }", nodeOffset)
+		}
 		fmt.Fprintf(&nodes, `impl<'a> FromNode<'a> for %v<'a> {
 	#[inline(always)]
 	fn matches(kind: Kind) -> bool {
@@ -388,13 +443,13 @@ pub fn %v(self) -> %v {
 	#[inline(always)]
 	unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
 		Self {
-			raw: node.raw.cast(),
+			raw: %s,
 			_marker: marker::PhantomData,
 		}
 	}
 }
 
-		`, nodeName, kindPattern.String())
+		`, nodeName, kindPattern.String(), rawCastExpr)
 	}
 
 	writeCheckerTypes(&checkerTypes, checkerScope, typeType)
@@ -431,7 +486,20 @@ pub fn %v(self) -> %v {
 }
 
 func writeVisitor(out *bytes.Buffer, cases []byte) {
-	fmt.Fprintf(out, `pub fn for_each_child<'a, F>(f: &mut F, node: Node<'a>) -> bool
+	fmt.Fprintf(out, `pub fn visit_node_slice<'a, F>(f: &mut F, nodes: GoSlice<*const RawNode>) -> bool
+where
+	F: FnMut(Node<'a>) -> bool,
+{
+	for child in slice_iter::<RawNode, Node<'a>>(nodes) {
+		if f(child) {
+			return true;
+		}
+	}
+
+	false
+}
+
+pub fn for_each_child<'a, F>(f: &mut F, node: Node<'a>) -> bool
 where
 	F: FnMut(Node<'a>) -> bool,
 {
@@ -441,6 +509,383 @@ where
 }
 
 `, string(cases))
+}
+
+func (schema *astSchema) kindElements() []kindValue {
+	values := make([]kindValue, 0, len(schema.Kinds.Elements))
+	for _, element := range schema.Kinds.Elements {
+		if element.Name == "" {
+			continue
+		}
+		values = append(values, kindValue{name: element.Name, value: fmt.Sprint(len(values))})
+	}
+	return values
+}
+
+func (schema *astSchema) kindValuesForNode(nodeName string) []kindValue {
+	names := schema.kindNamesForNode(nodeName)
+	if len(names) == 0 {
+		return nil
+	}
+
+	valuesByName := make(map[string]string)
+	for _, value := range schema.kindElements() {
+		valuesByName[value.name] = value.value
+	}
+
+	values := make([]kindValue, 0, len(names))
+	for _, name := range names {
+		value, ok := valuesByName[name]
+		if !ok {
+			panic(fmt.Sprintf("missing kind %v for %v", name, nodeName))
+		}
+		values = append(values, kindValue{name: name, value: value})
+	}
+	return values
+}
+
+func (schema *astSchema) kindNamesForNode(nodeName string) []string {
+	def, ok := schema.Nodes.Definitions[nodeName]
+	if !ok {
+		return nil
+	}
+
+	var names []string
+	for _, member := range def.Members {
+		if member.Name != "Kind" && member.Name != "kind" {
+			continue
+		}
+		names = append(names, schema.kindNamesFromTypes(member.Type, def)...)
+	}
+	names = append(names, schema.kindNamesFromTypes(def.Kind, def)...)
+	if len(names) == 0 {
+		names = append(names, nodeName)
+	}
+	return uniqueStrings(names)
+}
+
+func (schema *astSchema) kindNamesFromTypes(types schemaTypeNames, node schemaNodeDef) []string {
+	var names []string
+	for _, typeName := range types {
+		names = append(names, schema.kindNamesFromType(typeName, node)...)
+	}
+	return names
+}
+
+func (schema *astSchema) kindNamesFromType(typeName string, node schemaNodeDef) []string {
+	typeName = normalizeTypeName(typeName)
+	if typeName == "" || typeName == "Kind" {
+		return nil
+	}
+	if strings.HasPrefix(typeName, "SyntaxKind.") {
+		return []string{strings.TrimPrefix(typeName, "SyntaxKind.")}
+	}
+	for _, tp := range node.TypeParameters {
+		if tp.Name == typeName {
+			return schema.kindNamesFromType(tp.Constraint, node)
+		}
+	}
+	if _, ok := schema.Kinds.Aliases[typeName]; ok {
+		return schema.expandKindAlias(typeName)
+	}
+	if schema.hasKindElement(typeName) {
+		return []string{typeName}
+	}
+	return nil
+}
+
+func (schema *astSchema) expandKindAlias(name string) []string {
+	raw, ok := schema.Kinds.Aliases[name]
+	if !ok {
+		return []string{name}
+	}
+
+	var members []string
+	if err := json.Unmarshal(raw, &members); err == nil {
+		var expanded []string
+		for _, member := range members {
+			if _, ok := schema.Kinds.Aliases[member]; ok {
+				expanded = append(expanded, schema.expandKindAlias(member)...)
+			} else {
+				expanded = append(expanded, member)
+			}
+		}
+		return uniqueStrings(expanded)
+	}
+
+	var rangeAlias struct {
+		Range [2]string `json:"range"`
+	}
+	if err := json.Unmarshal(raw, &rangeAlias); err != nil {
+		panic(fmt.Sprintf("invalid kind alias %v: %v", name, err))
+	}
+
+	first := schema.resolveKindMarkerValue(rangeAlias.Range[0])
+	last := schema.resolveKindMarkerValue(rangeAlias.Range[1])
+	elements := schema.kindElements()
+	firstIndex := -1
+	lastIndex := -1
+	for i, element := range elements {
+		if element.name == first {
+			firstIndex = i
+		}
+		if element.name == last {
+			lastIndex = i
+		}
+	}
+	if firstIndex < 0 || lastIndex < 0 || firstIndex > lastIndex {
+		panic(fmt.Sprintf("invalid kind alias range %v: %v..%v", name, first, last))
+	}
+
+	names := make([]string, 0, lastIndex-firstIndex+1)
+	for _, element := range elements[firstIndex : lastIndex+1] {
+		names = append(names, element.name)
+	}
+	return names
+}
+
+func (schema *astSchema) resolveKindMarkerValue(name string) string {
+	for _, marker := range schema.Kinds.Markers {
+		if marker.Name == name {
+			return schema.resolveKindMarkerValue(marker.Value)
+		}
+	}
+	return name
+}
+
+func (schema *astSchema) hasKindElement(name string) bool {
+	for _, element := range schema.Kinds.Elements {
+		if element.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func writeSchemaVisitorCases(out *bytes.Buffer, schema *astSchema) {
+	names := make([]string, 0, len(schema.Nodes.Definitions))
+	for name := range schema.Nodes.Definitions {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	for _, nodeName := range names {
+		def := schema.Nodes.Definitions[nodeName]
+		members := schema.schemaMembers(nodeName, def)
+		var childMembers []resolvedSchemaMember
+		for _, member := range members {
+			if schema.isChildMember(member) {
+				childMembers = append(childMembers, member)
+			}
+		}
+		if len(childMembers) == 0 {
+			continue
+		}
+
+		kindPattern := schema.kindPatternForNode(nodeName)
+		if kindPattern == "" {
+			continue
+		}
+
+		if def.HandWrittenVisitor {
+			switch nodeName {
+			case "JSDocParameterOrPropertyTag":
+				fmt.Fprintf(out, `			%s => {
+				let node = unsafe { JSDocParameterOrPropertyTag::from_node_unchecked(node) };
+				if unsafe { (*node.raw).isNameFirst } != 0 {
+					visit_node(f, unsafe { (*node.raw).tagName }) || visit_node(f, unsafe { (*node.raw).name }) || visit_node(f, unsafe { (*node.raw).typeExpression }) || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+				} else {
+					visit_node(f, unsafe { (*node.raw).tagName }) || visit_node(f, unsafe { (*node.raw).typeExpression }) || visit_node(f, unsafe { (*node.raw).name }) || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+				}
+			},
+`, kindPattern)
+			default:
+				panic("unsupported hand-written visitor node " + nodeName)
+			}
+			continue
+		}
+
+		var visitExpr strings.Builder
+		for i, member := range childMembers {
+			if i > 0 {
+				visitExpr.WriteString(" || ")
+			}
+
+			fieldName := rustFieldName(member.name)
+			switch member.list {
+			case "raw":
+				fmt.Fprintf(&visitExpr, "visit_node_slice(f, unsafe { (*node.raw).%v })", fieldName)
+			case "NodeList", "ModifierList":
+				fmt.Fprintf(&visitExpr, "visit_node_list(f, unsafe { (*node.raw).%v.cast() })", fieldName)
+			default:
+				fmt.Fprintf(&visitExpr, "visit_node(f, unsafe { (*node.raw).%v })", fieldName)
+			}
+		}
+
+		fmt.Fprintf(out, `			%s => {
+				let node = unsafe { %v::from_node_unchecked(node) };
+				%s
+			},
+`, kindPattern, nodeName, visitExpr.String())
+	}
+}
+
+func (schema *astSchema) kindPatternForNode(nodeName string) string {
+	kinds := schema.kindValuesForNode(nodeName)
+	var kindPattern strings.Builder
+	for i, kind := range kinds {
+		if i > 0 {
+			kindPattern.WriteString(" | ")
+		}
+		fmt.Fprintf(&kindPattern, "Kind::%v", kind.name)
+	}
+	return kindPattern.String()
+}
+
+func (schema *astSchema) schemaMembers(nodeName string, def schemaNodeDef) []resolvedSchemaMember {
+	members := make([]resolvedSchemaMember, 0, len(def.Members))
+	for _, member := range def.Members {
+		resolved := resolvedSchemaMember{
+			name:      member.Name,
+			types:     member.Type,
+			list:      member.List,
+			goOnly:    member.GoOnly,
+			noFactory: member.NoFactory,
+		}
+		if member.Inherited {
+			if inherited, ok := schema.inheritedField(def, member.Name); ok {
+				if len(resolved.types) == 0 {
+					resolved.types = inherited.Type
+				}
+				if resolved.list == "" {
+					resolved.list = inherited.List
+				}
+				resolved.goOnly = resolved.goOnly || inherited.GoOnly
+				resolved.noFactory = resolved.noFactory || inherited.NoFactory
+			}
+		}
+		if resolved.goOnly || resolved.noFactory || schema.isKindMember(resolved) {
+			continue
+		}
+		members = append(members, resolved)
+	}
+	return members
+}
+
+func (schema *astSchema) inheritedField(def schemaNodeDef, fieldName string) (schemaBaseField, bool) {
+	for _, baseName := range def.Extends {
+		if field, ok := schema.inheritedFieldFromBase(baseName, fieldName); ok {
+			return field, true
+		}
+	}
+	return schemaBaseField{}, false
+}
+
+func (schema *astSchema) inheritedFieldFromBase(baseName, fieldName string) (schemaBaseField, bool) {
+	base, ok := schema.Bases[baseName]
+	if !ok {
+		return schemaBaseField{}, false
+	}
+	if field, ok := base.Fields[fieldName]; ok {
+		return field, true
+	}
+	for _, parentName := range base.Extends {
+		if field, ok := schema.inheritedFieldFromBase(parentName, fieldName); ok {
+			return field, true
+		}
+	}
+	return schemaBaseField{}, false
+}
+
+func (schema *astSchema) isKindMember(member resolvedSchemaMember) bool {
+	if member.name != "Kind" && member.name != "kind" {
+		return false
+	}
+	return schema.baseKind(member.types, schemaNodeDef{}) == "kind"
+}
+
+func (schema *astSchema) isChildMember(member resolvedSchemaMember) bool {
+	if member.list != "" {
+		return schema.baseKind(member.types, schemaNodeDef{}) == "node"
+	}
+	return schema.baseKind(member.types, schemaNodeDef{}) == "node"
+}
+
+func (schema *astSchema) baseKind(types []string, node schemaNodeDef) string {
+	hasNode := false
+	hasKind := false
+	for _, typeName := range types {
+		switch schema.baseKindOfType(typeName, node) {
+		case "node", "list":
+			hasNode = true
+		case "kind":
+			hasKind = true
+		}
+	}
+	if hasNode {
+		return "node"
+	}
+	if hasKind {
+		return "kind"
+	}
+	return "primitive"
+}
+
+func (schema *astSchema) baseKindOfType(typeName string, node schemaNodeDef) string {
+	typeName = normalizeTypeName(typeName)
+	if typeName == "" {
+		return "primitive"
+	}
+	if strings.HasPrefix(typeName, "SyntaxKind.") || typeName == "Kind" {
+		return "kind"
+	}
+	for _, tp := range node.TypeParameters {
+		if tp.Name == typeName {
+			return schema.baseKindOfType(tp.Constraint, node)
+		}
+	}
+	if _, ok := schema.Kinds.Aliases[typeName]; ok {
+		return "kind"
+	}
+	if schema.hasKindElement(typeName) {
+		return "kind"
+	}
+	if _, ok := schema.Nodes.Definitions[typeName]; ok {
+		return "node"
+	}
+	if _, ok := schema.Bases[typeName]; ok {
+		return "node"
+	}
+	if _, ok := schema.Nodes.Aliases[typeName]; ok {
+		return "node"
+	}
+	if _, ok := schema.Nodes.ListAliases[typeName]; ok {
+		return "list"
+	}
+	for _, def := range schema.Nodes.Definitions {
+		if _, ok := def.InstantiationAliases[typeName]; ok {
+			return "node"
+		}
+	}
+	return "primitive"
+}
+
+func normalizeTypeName(typeName string) string {
+	typeName = strings.TrimPrefix(typeName, "*")
+	return strings.TrimSpace(typeName)
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]bool, len(values))
+	unique := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		unique = append(unique, value)
+	}
+	return unique
 }
 
 func writeCheckerTypes(out *bytes.Buffer, scope *types.Scope, typeType *types.Named) {
@@ -860,6 +1305,11 @@ func mapField(field *types.Var) (fieldInfo, bool) {
 			}, true
 		}
 		switch t.Obj().Name() {
+		case "Uint32":
+			if t.Obj().Pkg() != nil && t.Obj().Pkg().Path() == "sync/atomic" {
+				return fieldInfo{skip: true}, true
+			}
+			return fieldInfo{}, false
 		case "SymbolTable", "TokenFlags":
 			return fieldInfo{skip: true}, true
 		default:
@@ -1240,11 +1690,43 @@ func rustConstName(name string) string {
 
 func rustKeyword(name string) string {
 	switch name {
-		case "type":
-			return "r_" + name
+	case "type":
+		return "r_" + name
 	default:
 		return name
 	}
+}
+
+func embeddedNodeOffset(s *types.Struct, offset int64) (int64, bool) {
+	fieldsCount := s.NumFields()
+	for fieldIdx := range fieldsCount {
+		field := s.Field(fieldIdx)
+		fieldAlign := sizes.Alignof(field.Type())
+		offset = align(offset, fieldAlign)
+		fieldSize := sizes.Sizeof(field.Type())
+		if fieldSize == 0 {
+			if fieldIdx == fieldsCount-1 {
+				offset += int64(unsafe.Sizeof(uintptr(0)))
+			}
+			continue
+		}
+
+		if field.Embedded() {
+			fieldType := field.Type()
+			if named, ok := fieldType.(*types.Named); ok && named.Obj().Name() == "Node" {
+				return offset, true
+			}
+			if embedded, ok := fieldType.Underlying().(*types.Struct); ok {
+				if nodeOffset, ok := embeddedNodeOffset(embedded, offset); ok {
+					return nodeOffset, true
+				}
+			}
+		}
+
+		offset += fieldSize
+	}
+
+	return 0, false
 }
 
 func iterStructFields(s *types.Struct, offset int64, filterField func(*types.Var) bool, genField func(field *types.Var, offset int64)) int64 {

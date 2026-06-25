@@ -7,12 +7,12 @@ import assert from 'node:assert/strict'
 import type {
 	Node,
 	SourceFile,
-} from '../../../thirdparty/typescript-go/_packages/ast/dist/nodes.js'
+} from '../../../thirdparty/typescript-go/_packages/native-preview/dist/ast/ast.js'
 import {
 	type RemoteNode,
 	RemoteSourceFile,
 	type RemoteNodeList,
-} from '../../../thirdparty/typescript-go/_packages/api/dist/node/node.js'
+} from '../../../thirdparty/typescript-go/_packages/native-preview/dist/api/node/node.js'
 import { Registry, Type, type NodeHandle } from './type-decoder.ts'
 import * as v from 'valibot'
 import { addon, golarAddonPath, syncBuf, syncView } from './addon.ts'

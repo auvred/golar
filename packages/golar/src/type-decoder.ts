@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import type {
 	RemoteNode,
 	RemoteNodeList,
-} from '../../../thirdparty/typescript-go/_packages/api/dist/node/node.js'
+} from '../../../thirdparty/typescript-go/_packages/native-preview/dist/api/node/node.js'
 import {
 	ObjectFlags,
 	TypeFlags,

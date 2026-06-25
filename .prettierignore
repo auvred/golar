@@ -1,2 +1,4 @@
 /thirdparty
 /pnpm-lock.yaml
+/cmd/golar/napi_dynamic_symbols.inc
+/e2e/service-code-error/fixture/comp.vue

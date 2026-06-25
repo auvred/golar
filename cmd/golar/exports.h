@@ -43,7 +43,6 @@ extern golar_file_with_program golar_workspace_get_requested_file(uintptr_t work
 extern uintptr_t golar_program_get_type_at_location(uintptr_t programPtr, uintptr_t nodePtr) GOLAR_EXPORT;
 extern void golar_workspace_report(uintptr_t workspacePtr, uint32_t fileIdx, int32_t start, int32_t end, char *ruleNameData, size_t ruleNameLen, char *messageData, size_t messageLen) GOLAR_EXPORT;
 
-
 #line 1 "cgo-generated-wrapper"
 
 #line 3 "js_plugin.go"

@@ -6,83 +6,79 @@ use std::marker;
 use crate::common::*;
 use crate::flags_generated::*;
 
+pub fn visit_node_slice<'a, F>(f: &mut F, nodes: GoSlice<*const RawNode>) -> bool
+where
+    F: FnMut(Node<'a>) -> bool,
+{
+    for child in slice_iter::<RawNode, Node<'a>>(nodes) {
+        if f(child) {
+            return true;
+        }
+    }
+
+    false
+}
+
 pub fn for_each_child<'a, F>(f: &mut F, node: Node<'a>) -> bool
 where
     F: FnMut(Node<'a>) -> bool,
 {
     match node.kind() {
-        Kind::QualifiedName => {
-            let node = unsafe { QualifiedName::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).left })
+        Kind::ArrayLiteralExpression => {
+            let node = unsafe { ArrayLiteralExpression::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).elements.cast() })
+        }
+        Kind::ArrayType => {
+            let node = unsafe { ArrayTypeNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).elementType })
+        }
+        Kind::ArrowFunction => {
+            let node = unsafe { ArrowFunction::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).fullSignature })
+                || visit_node(f, unsafe { (*node.raw).body })
+        }
+        Kind::AsExpression => {
+            let node = unsafe { AsExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::AwaitExpression => {
+            let node = unsafe { AwaitExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::BinaryExpression => {
+            let node = unsafe { BinaryExpression::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).left })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).operatorToken })
                 || visit_node(f, unsafe { (*node.raw).right })
         }
-        Kind::TypeParameter => {
-            let node = unsafe { TypeParameterDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+        Kind::BindingElement => {
+            let node = unsafe { BindingElement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).propertyName })
                 || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).constraint })
-                || visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).defaultType })
-        }
-        Kind::ComputedPropertyName => {
-            let node = unsafe { ComputedPropertyName::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::Decorator => {
-            let node = unsafe { Decorator::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::IfStatement => {
-            let node = unsafe { IfStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).thenStatement })
-                || visit_node(f, unsafe { (*node.raw).elseStatement })
-        }
-        Kind::DoStatement => {
-            let node = unsafe { DoStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).statement })
-                || visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::WhileStatement => {
-            let node = unsafe { WhileStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).statement })
-        }
-        Kind::ForStatement => {
-            let node = unsafe { ForStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).initializer })
-                || visit_node(f, unsafe { (*node.raw).condition })
-                || visit_node(f, unsafe { (*node.raw).incrementor })
-                || visit_node(f, unsafe { (*node.raw).statement })
-        }
-        Kind::ForInStatement | Kind::ForOfStatement => {
-            let node = unsafe { ForInOrOfStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).awaitModifier })
                 || visit_node(f, unsafe { (*node.raw).initializer })
-                || visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).statement })
         }
-        Kind::BreakStatement => {
-            let node = unsafe { BreakStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).label })
+        Kind::Block => {
+            let node = unsafe { Block::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).statements.cast() })
         }
-        Kind::ContinueStatement => {
-            let node = unsafe { ContinueStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).label })
-        }
-        Kind::ReturnStatement => {
-            let node = unsafe { ReturnStatement::from_node_unchecked(node) };
+        Kind::CallExpression => {
+            let node = unsafe { CallExpression::from_node_unchecked(node) };
             visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).arguments.cast() })
         }
-        Kind::WithStatement => {
-            let node = unsafe { WithStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).statement })
-        }
-        Kind::SwitchStatement => {
-            let node = unsafe { SwitchStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).caseBlock })
+        Kind::CallSignature => {
+            let node = unsafe { CallSignatureDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
         }
         Kind::CaseBlock => {
             let node = unsafe { CaseBlock::from_node_unchecked(node) };
@@ -93,223 +89,38 @@ where
             visit_node(f, unsafe { (*node.raw).expression })
                 || visit_node_list(f, unsafe { (*node.raw).statements.cast() })
         }
-        Kind::ThrowStatement => {
-            let node = unsafe { ThrowStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::TryStatement => {
-            let node = unsafe { TryStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tryBlock })
-                || visit_node(f, unsafe { (*node.raw).catchClause })
-                || visit_node(f, unsafe { (*node.raw).finallyBlock })
-        }
-        Kind::CatchClause => {
-            let node = unsafe { CatchClause::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).variableDeclaration })
-                || visit_node(f, unsafe { (*node.raw).block })
-        }
-        Kind::LabeledStatement => {
-            let node = unsafe { LabeledStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).label })
-                || visit_node(f, unsafe { (*node.raw).statement })
-        }
-        Kind::ExpressionStatement => {
-            let node = unsafe { ExpressionStatement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::Block => {
-            let node = unsafe { Block::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).statements.cast() })
-        }
-        Kind::VariableStatement => {
-            let node = unsafe { VariableStatement::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).declarationList })
-        }
-        Kind::VariableDeclaration => {
-            let node = unsafe { VariableDeclaration::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).exclamationToken })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).initializer })
-        }
-        Kind::VariableDeclarationList => {
-            let node = unsafe { VariableDeclarationList::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).declarations.cast() })
-        }
-        Kind::ObjectBindingPattern | Kind::ArrayBindingPattern => {
-            let node = unsafe { BindingPattern::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).elements.cast() })
-        }
-        Kind::Parameter => {
-            let node = unsafe { ParameterDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).dotDotDotToken })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).questionToken })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).initializer })
-        }
-        Kind::BindingElement => {
-            let node = unsafe { BindingElement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).dotDotDotToken })
-                || visit_node(f, unsafe { (*node.raw).propertyName })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).initializer })
-        }
-        Kind::MissingDeclaration => {
-            let node = unsafe { MissingDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-        }
-        Kind::FunctionDeclaration => {
-            let node = unsafe { FunctionDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).asteriskToken })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).fullSignature })
-                || visit_node(f, unsafe { (*node.raw).body })
-        }
         Kind::ClassDeclaration => {
             let node = unsafe { ClassDeclaration::from_node_unchecked(node) };
             visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
                 || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).heritageClauses.cast() })
                 || visit_node_list(f, unsafe { (*node.raw).members.cast() })
         }
         Kind::ClassExpression => {
             let node = unsafe { ClassExpression::from_node_unchecked(node) };
             visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
                 || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).heritageClauses.cast() })
                 || visit_node_list(f, unsafe { (*node.raw).members.cast() })
         }
-        Kind::HeritageClause => {
-            let node = unsafe { HeritageClause::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).types.cast() })
-        }
-        Kind::InterfaceDeclaration => {
-            let node = unsafe { InterfaceDeclaration::from_node_unchecked(node) };
+        Kind::ClassStaticBlockDeclaration => {
+            let node = unsafe { ClassStaticBlockDeclaration::from_node_unchecked(node) };
             visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).heritageClauses.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).members.cast() })
         }
-        Kind::TypeAliasDeclaration => {
-            let node = unsafe { TypeAliasDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::EnumMember => {
-            let node = unsafe { EnumMember::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).initializer })
-        }
-        Kind::EnumDeclaration => {
-            let node = unsafe { EnumDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node_list(f, unsafe { (*node.raw).members.cast() })
-        }
-        Kind::ModuleBlock => {
-            let node = unsafe { ModuleBlock::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).statements.cast() })
-        }
-        Kind::ModuleDeclaration => {
-            let node = unsafe { ModuleDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).body })
-        }
-        Kind::SyntheticReferenceExpression => {
-            let node = unsafe { SyntheticReferenceExpression::from_node_unchecked(node) };
+        Kind::ComputedPropertyName => {
+            let node = unsafe { ComputedPropertyName::from_node_unchecked(node) };
             visit_node(f, unsafe { (*node.raw).expression })
         }
-        Kind::ImportEqualsDeclaration => {
-            let node = unsafe { ImportEqualsDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).moduleReference })
+        Kind::ConditionalExpression => {
+            let node = unsafe { ConditionalExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).condition })
+                || visit_node(f, unsafe { (*node.raw).whenTrue })
+                || visit_node(f, unsafe { (*node.raw).whenFalse })
         }
-        Kind::ImportDeclaration => {
-            let node = unsafe { ImportDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).importClause })
-                || visit_node(f, unsafe { (*node.raw).moduleSpecifier })
-                || visit_node(f, unsafe { (*node.raw).attributes })
-        }
-        Kind::ImportSpecifier => {
-            let node = unsafe { ImportSpecifier::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).propertyName })
-                || visit_node(f, unsafe { (*node.raw).name })
-        }
-        Kind::ExternalModuleReference => {
-            let node = unsafe { ExternalModuleReference::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::ImportClause => {
-            let node = unsafe { ImportClause::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).namedBindings })
-        }
-        Kind::NamespaceImport => {
-            let node = unsafe { NamespaceImport::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).name })
-        }
-        Kind::NamedImports => {
-            let node = unsafe { NamedImports::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).elements.cast() })
-        }
-        Kind::ExportAssignment => {
-            let node = unsafe { ExportAssignment::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::CommonJSExport => {
-            let node = unsafe { CommonJSExport::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).initializer })
-        }
-        Kind::NamespaceExportDeclaration => {
-            let node = unsafe { NamespaceExportDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-        }
-        Kind::ExportDeclaration => {
-            let node = unsafe { ExportDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).exportClause })
-                || visit_node(f, unsafe { (*node.raw).moduleSpecifier })
-                || visit_node(f, unsafe { (*node.raw).attributes })
-        }
-        Kind::NamespaceExport => {
-            let node = unsafe { NamespaceExport::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).name })
-        }
-        Kind::NamedExports => {
-            let node = unsafe { NamedExports::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).elements.cast() })
-        }
-        Kind::ExportSpecifier => {
-            let node = unsafe { ExportSpecifier::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).propertyName })
-                || visit_node(f, unsafe { (*node.raw).name })
-        }
-        Kind::CallSignature => {
-            let node = unsafe { CallSignatureDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
+        Kind::ConditionalType => {
+            let node = unsafe { ConditionalTypeNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).checkType })
+                || visit_node(f, unsafe { (*node.raw).extendsType })
+                || visit_node(f, unsafe { (*node.raw).trueType })
+                || visit_node(f, unsafe { (*node.raw).falseType })
         }
         Kind::ConstructSignature => {
             let node = unsafe { ConstructSignatureDeclaration::from_node_unchecked(node) };
@@ -326,6 +137,107 @@ where
                 || visit_node(f, unsafe { (*node.raw).fullSignature })
                 || visit_node(f, unsafe { (*node.raw).body })
         }
+        Kind::ConstructorType => {
+            let node = unsafe { ConstructorTypeNode::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::Decorator => {
+            let node = unsafe { Decorator::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::DeleteExpression => {
+            let node = unsafe { DeleteExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::DoStatement => {
+            let node = unsafe { DoStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).statement })
+                || visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::ElementAccessExpression => {
+            let node = unsafe { ElementAccessExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).argumentExpression })
+        }
+        Kind::EnumDeclaration => {
+            let node = unsafe { EnumDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+        }
+        Kind::EnumMember => {
+            let node = unsafe { EnumMember::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).initializer })
+        }
+        Kind::ExportAssignment => {
+            let node = unsafe { ExportAssignment::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::ExportDeclaration => {
+            let node = unsafe { ExportDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).exportClause })
+                || visit_node(f, unsafe { (*node.raw).moduleSpecifier })
+        }
+        Kind::ExportSpecifier => {
+            let node = unsafe { ExportSpecifier::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).propertyName })
+                || visit_node(f, unsafe { (*node.raw).name })
+        }
+        Kind::ExpressionStatement => {
+            let node = unsafe { ExpressionStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::ExpressionWithTypeArguments => {
+            let node = unsafe { ExpressionWithTypeArguments::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
+        }
+        Kind::ExternalModuleReference => {
+            let node = unsafe { ExternalModuleReference::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::ForInStatement | Kind::ForOfStatement => {
+            let node = unsafe { ForInOrOfStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).initializer })
+                || visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).statement })
+        }
+        Kind::ForStatement => {
+            let node = unsafe { ForStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).initializer })
+                || visit_node(f, unsafe { (*node.raw).condition })
+                || visit_node(f, unsafe { (*node.raw).incrementor })
+                || visit_node(f, unsafe { (*node.raw).statement })
+        }
+        Kind::FunctionDeclaration => {
+            let node = unsafe { FunctionDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).fullSignature })
+                || visit_node(f, unsafe { (*node.raw).body })
+        }
+        Kind::FunctionExpression => {
+            let node = unsafe { FunctionExpression::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).fullSignature })
+                || visit_node(f, unsafe { (*node.raw).body })
+        }
+        Kind::FunctionType => {
+            let node = unsafe { FunctionTypeNode::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+        }
         Kind::GetAccessor => {
             let node = unsafe { GetAccessorDeclaration::from_node_unchecked(node) };
             visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
@@ -336,15 +248,40 @@ where
                 || visit_node(f, unsafe { (*node.raw).fullSignature })
                 || visit_node(f, unsafe { (*node.raw).body })
         }
-        Kind::SetAccessor => {
-            let node = unsafe { SetAccessorDeclaration::from_node_unchecked(node) };
+        Kind::IfStatement => {
+            let node = unsafe { IfStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).thenStatement })
+                || visit_node(f, unsafe { (*node.raw).elseStatement })
+        }
+        Kind::ImportAttribute => {
+            let node = unsafe { ImportAttribute::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).value })
+        }
+        Kind::ImportClause => {
+            let node = unsafe { ImportClause::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).namedBindings })
+        }
+        Kind::ImportDeclaration | Kind::JSImportDeclaration => {
+            let node = unsafe { ImportDeclaration::from_node_unchecked(node) };
             visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).fullSignature })
-                || visit_node(f, unsafe { (*node.raw).body })
+                || visit_node(f, unsafe { (*node.raw).moduleSpecifier })
+        }
+        Kind::ImportEqualsDeclaration => {
+            let node = unsafe { ImportEqualsDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).moduleReference })
+        }
+        Kind::ImportSpecifier => {
+            let node = unsafe { ImportSpecifier::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).propertyName })
+        }
+        Kind::ImportType => {
+            let node = unsafe { ImportTypeNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).argument })
+                || visit_node(f, unsafe { (*node.raw).qualifier })
+                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
         }
         Kind::IndexSignature => {
             let node = unsafe { IndexSignatureDeclaration::from_node_unchecked(node) };
@@ -352,417 +289,68 @@ where
                 || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
                 || visit_node(f, unsafe { (*node.raw).r_type })
         }
-        Kind::MethodSignature => {
-            let node = unsafe { MethodSignatureDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).postfixToken })
-                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::MethodDeclaration => {
-            let node = unsafe { MethodDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).asteriskToken })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).postfixToken })
-                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).fullSignature })
-                || visit_node(f, unsafe { (*node.raw).body })
-        }
-        Kind::PropertySignature => {
-            let node = unsafe { PropertySignatureDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).postfixToken })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).initializer })
-        }
-        Kind::PropertyDeclaration => {
-            let node = unsafe { PropertyDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).postfixToken })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).initializer })
-        }
-        Kind::ClassStaticBlockDeclaration => {
-            let node = unsafe { ClassStaticBlockDeclaration::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).body })
-        }
-        Kind::BinaryExpression => {
-            let node = unsafe { BinaryExpression::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).left })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).operatorToken })
-                || visit_node(f, unsafe { (*node.raw).right })
-        }
-        Kind::PrefixUnaryExpression => {
-            let node = unsafe { PrefixUnaryExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).operand })
-        }
-        Kind::PostfixUnaryExpression => {
-            let node = unsafe { PostfixUnaryExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).operand })
-        }
-        Kind::YieldExpression => {
-            let node = unsafe { YieldExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).asteriskToken })
-                || visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::ArrowFunction => {
-            let node = unsafe { ArrowFunction::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).fullSignature })
-                || visit_node(f, unsafe { (*node.raw).equalsGreaterThanToken })
-                || visit_node(f, unsafe { (*node.raw).body })
-        }
-        Kind::FunctionExpression => {
-            let node = unsafe { FunctionExpression::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).asteriskToken })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).fullSignature })
-                || visit_node(f, unsafe { (*node.raw).body })
-        }
-        Kind::AsExpression => {
-            let node = unsafe { AsExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::SatisfiesExpression => {
-            let node = unsafe { SatisfiesExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::ConditionalExpression => {
-            let node = unsafe { ConditionalExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).condition })
-                || visit_node(f, unsafe { (*node.raw).questionToken })
-                || visit_node(f, unsafe { (*node.raw).whenTrue })
-                || visit_node(f, unsafe { (*node.raw).colonToken })
-                || visit_node(f, unsafe { (*node.raw).whenFalse })
-        }
-        Kind::PropertyAccessExpression => {
-            let node = unsafe { PropertyAccessExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).questionDotToken })
-                || visit_node(f, unsafe { (*node.raw).name })
-        }
-        Kind::ElementAccessExpression => {
-            let node = unsafe { ElementAccessExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).questionDotToken })
-                || visit_node(f, unsafe { (*node.raw).argumentExpression })
-        }
-        Kind::CallExpression => {
-            let node = unsafe { CallExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).questionDotToken })
-                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).arguments.cast() })
-        }
-        Kind::NewExpression => {
-            let node = unsafe { NewExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).arguments.cast() })
-        }
-        Kind::MetaProperty => {
-            let node = unsafe { MetaProperty::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).name })
-        }
-        Kind::NonNullExpression => {
-            let node = unsafe { NonNullExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::SpreadElement => {
-            let node = unsafe { SpreadElement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::TemplateExpression => {
-            let node = unsafe { TemplateExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).head })
-                || visit_node_list(f, unsafe { (*node.raw).templateSpans.cast() })
-        }
-        Kind::TemplateSpan => {
-            let node = unsafe { TemplateSpan::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node(f, unsafe { (*node.raw).literal })
-        }
-        Kind::TaggedTemplateExpression => {
-            let node = unsafe { TaggedTemplateExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tag })
-                || visit_node(f, unsafe { (*node.raw).questionDotToken })
-                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
-                || visit_node(f, unsafe { (*node.raw).template })
-        }
-        Kind::ParenthesizedExpression => {
-            let node = unsafe { ParenthesizedExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::ArrayLiteralExpression => {
-            let node = unsafe { ArrayLiteralExpression::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).elements.cast() })
-        }
-        Kind::ObjectLiteralExpression => {
-            let node = unsafe { ObjectLiteralExpression::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).properties.cast() })
-        }
-        Kind::SpreadAssignment => {
-            let node = unsafe { SpreadAssignment::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::PropertyAssignment => {
-            let node = unsafe { PropertyAssignment::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).postfixToken })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).initializer })
-        }
-        Kind::ShorthandPropertyAssignment => {
-            let node = unsafe { ShorthandPropertyAssignment::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).postfixToken })
-                || visit_node(f, unsafe { (*node.raw).equalsToken })
-                || visit_node(f, unsafe { (*node.raw).objectAssignmentInitializer })
-        }
-        Kind::DeleteExpression => {
-            let node = unsafe { DeleteExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::TypeOfExpression => {
-            let node = unsafe { TypeOfExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::VoidExpression => {
-            let node = unsafe { VoidExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::AwaitExpression => {
-            let node = unsafe { AwaitExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::TypeAssertionExpression => {
-            let node = unsafe { TypeAssertion::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::UnionType => {
-            let node = unsafe { UnionTypeNode::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).types.cast() })
-        }
-        Kind::IntersectionType => {
-            let node = unsafe { IntersectionTypeNode::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).types.cast() })
-        }
-        Kind::ConditionalType => {
-            let node = unsafe { ConditionalTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).checkType })
-                || visit_node(f, unsafe { (*node.raw).extendsType })
-                || visit_node(f, unsafe { (*node.raw).trueType })
-                || visit_node(f, unsafe { (*node.raw).falseType })
-        }
-        Kind::TypeOperator => {
-            let node = unsafe { TypeOperatorNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::InferType => {
-            let node = unsafe { InferTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).typeParameter })
-        }
-        Kind::ArrayType => {
-            let node = unsafe { ArrayTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).elementType })
-        }
         Kind::IndexedAccessType => {
             let node = unsafe { IndexedAccessTypeNode::from_node_unchecked(node) };
             visit_node(f, unsafe { (*node.raw).objectType })
                 || visit_node(f, unsafe { (*node.raw).indexType })
         }
-        Kind::TypeReference => {
-            let node = unsafe { TypeReferenceNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).typeName })
-                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
+        Kind::InferType => {
+            let node = unsafe { InferTypeNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).typeParameter })
         }
-        Kind::ExpressionWithTypeArguments => {
-            let node = unsafe { ExpressionWithTypeArguments::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
-        }
-        Kind::LiteralType => {
-            let node = unsafe { LiteralTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).literal })
-        }
-        Kind::TypePredicate => {
-            let node = unsafe { TypePredicateNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).assertsModifier })
-                || visit_node(f, unsafe { (*node.raw).parameterName })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::ImportType => {
-            let node = unsafe { ImportTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).argument })
-                || visit_node(f, unsafe { (*node.raw).attributes })
-                || visit_node(f, unsafe { (*node.raw).qualifier })
-                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
-        }
-        Kind::ImportAttribute => {
-            let node = unsafe { ImportAttribute::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).value })
-        }
-        Kind::ImportAttributes => {
-            let node = unsafe { ImportAttributes::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).attributes.cast() })
-        }
-        Kind::TypeQuery => {
-            let node = unsafe { TypeQueryNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).exprName })
-                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
-        }
-        Kind::MappedType => {
-            let node = unsafe { MappedTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).readonlyToken })
-                || visit_node(f, unsafe { (*node.raw).typeParameter })
-                || visit_node(f, unsafe { (*node.raw).nameType })
-                || visit_node(f, unsafe { (*node.raw).questionToken })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node_list(f, unsafe { (*node.raw).members.cast() })
-        }
-        Kind::TypeLiteral => {
-            let node = unsafe { TypeLiteralNode::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).members.cast() })
-        }
-        Kind::TupleType => {
-            let node = unsafe { TupleTypeNode::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).elements.cast() })
-        }
-        Kind::NamedTupleMember => {
-            let node = unsafe { NamedTupleMember::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).dotDotDotToken })
-                || visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).questionToken })
-                || visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::OptionalType => {
-            let node = unsafe { OptionalTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::RestType => {
-            let node = unsafe { RestTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::ParenthesizedType => {
-            let node = unsafe { ParenthesizedTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).r_type })
-        }
-        Kind::FunctionType => {
-            let node = unsafe { FunctionTypeNode::from_node_unchecked(node) };
+        Kind::InterfaceDeclaration => {
+            let node = unsafe { InterfaceDeclaration::from_node_unchecked(node) };
             visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
                 || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
-                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node_list(f, unsafe { (*node.raw).members.cast() })
         }
-        Kind::TemplateLiteralType => {
-            let node = unsafe { TemplateLiteralTypeNode::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).head })
-                || visit_node_list(f, unsafe { (*node.raw).templateSpans.cast() })
-        }
-        Kind::TemplateLiteralTypeSpan => {
-            let node = unsafe { TemplateLiteralTypeSpan::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).r_type })
-                || visit_node(f, unsafe { (*node.raw).literal })
-        }
-        Kind::PartiallyEmittedExpression => {
-            let node = unsafe { PartiallyEmittedExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::JsxElement => {
-            let node = unsafe { JsxElement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).openingElement })
-                || visit_node_list(f, unsafe { (*node.raw).children.cast() })
-                || visit_node(f, unsafe { (*node.raw).closingElement })
-        }
-        Kind::JsxAttributes => {
-            let node = unsafe { JsxAttributes::from_node_unchecked(node) };
-            visit_node_list(f, unsafe { (*node.raw).properties.cast() })
-        }
-        Kind::JsxNamespacedName => {
-            let node = unsafe { JsxNamespacedName::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).namespace })
-                || visit_node(f, unsafe { (*node.raw).name })
-        }
-        Kind::JsxOpeningElement => {
-            let node = unsafe { JsxOpeningElement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
-                || visit_node(f, unsafe { (*node.raw).attributes })
-        }
-        Kind::JsxSelfClosingElement => {
-            let node = unsafe { JsxSelfClosingElement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
-                || visit_node(f, unsafe { (*node.raw).attributes })
-        }
-        Kind::JsxFragment => {
-            let node = unsafe { JsxFragment::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).openingFragment })
-                || visit_node_list(f, unsafe { (*node.raw).children.cast() })
-                || visit_node(f, unsafe { (*node.raw).closingFragment })
-        }
-        Kind::JsxAttribute => {
-            let node = unsafe { JsxAttribute::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).name })
-                || visit_node(f, unsafe { (*node.raw).initializer })
-        }
-        Kind::JsxSpreadAttribute => {
-            let node = unsafe { JsxSpreadAttribute::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).expression })
-        }
-        Kind::JsxClosingElement => {
-            let node = unsafe { JsxClosingElement::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-        }
-        Kind::JsxExpression => {
-            let node = unsafe { JsxExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).dotDotDotToken })
-                || visit_node(f, unsafe { (*node.raw).expression })
+        Kind::IntersectionType => {
+            let node = unsafe { IntersectionTypeNode::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).types.cast() })
         }
         Kind::JSDoc => {
             let node = unsafe { JSDoc::from_node_unchecked(node) };
             visit_node_list(f, unsafe { (*node.raw).comment.cast() })
                 || visit_node_list(f, unsafe { (*node.raw).tags.cast() })
         }
+        Kind::JSDocAugmentsTag => {
+            let node = unsafe { JSDocAugmentsTag::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocCallbackTag => {
+            let node = unsafe { JSDocCallbackTag::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).typeExpression })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocDeprecatedTag => {
+            let node = unsafe { JSDocDeprecatedTag::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocImplementsTag => {
+            let node = unsafe { JSDocImplementsTag::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocImportTag => {
+            let node = unsafe { JSDocImportTag::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).moduleSpecifier })
+                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
         Kind::JSDocLink => {
             let node = unsafe { JSDocLink::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).name })
-        }
-        Kind::JSDocLinkPlain => {
-            let node = unsafe { JSDocLinkPlain::from_node_unchecked(node) };
             visit_node(f, unsafe { (*node.raw).name })
         }
         Kind::JSDocLinkCode => {
             let node = unsafe { JSDocLinkCode::from_node_unchecked(node) };
             visit_node(f, unsafe { (*node.raw).name })
         }
-        Kind::JSDocTypeExpression => {
-            let node = unsafe { JSDocTypeExpression::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).r_type })
+        Kind::JSDocLinkPlain => {
+            let node = unsafe { JSDocLinkPlain::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).name })
+        }
+        Kind::JSDocNameReference => {
+            let node = unsafe { JSDocNameReference::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).name })
         }
         Kind::JSDocNonNullableType => {
             let node = unsafe { JSDocNonNullableType::from_node_unchecked(node) };
@@ -772,31 +360,18 @@ where
             let node = unsafe { JSDocNullableType::from_node_unchecked(node) };
             visit_node(f, unsafe { (*node.raw).r_type })
         }
-        Kind::JSDocVariadicType => {
-            let node = unsafe { JSDocVariadicType::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).r_type })
-        }
         Kind::JSDocOptionalType => {
             let node = unsafe { JSDocOptionalType::from_node_unchecked(node) };
             visit_node(f, unsafe { (*node.raw).r_type })
         }
-        Kind::JSDocTypeTag => {
-            let node = unsafe { JSDocTypeTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).typeExpression })
+        Kind::JSDocOverloadTag => {
+            let node = unsafe { JSDocOverloadTag::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).typeExpression })
                 || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
         }
-        Kind::JSDocTag => {
-            let node = unsafe { JSDocUnknownTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocTemplateTag => {
-            let node = unsafe { JSDocTemplateTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).constraint })
-                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        Kind::JSDocOverrideTag => {
+            let node = unsafe { JSDocOverrideTag::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
         }
         Kind::JSDocParameterTag | Kind::JSDocPropertyTag => {
             let node = unsafe { JSDocParameterOrPropertyTag::from_node_unchecked(node) };
@@ -812,115 +387,36 @@ where
                     || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
             }
         }
-        Kind::JSDocReturnTag => {
-            let node = unsafe { JSDocReturnTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).typeExpression })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocPublicTag => {
-            let node = unsafe { JSDocPublicTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
         Kind::JSDocPrivateTag => {
             let node = unsafe { JSDocPrivateTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
         }
         Kind::JSDocProtectedTag => {
             let node = unsafe { JSDocProtectedTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocPublicTag => {
+            let node = unsafe { JSDocPublicTag::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
         }
         Kind::JSDocReadonlyTag => {
             let node = unsafe { JSDocReadonlyTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
         }
-        Kind::JSDocOverrideTag => {
-            let node = unsafe { JSDocOverrideTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocDeprecatedTag => {
-            let node = unsafe { JSDocDeprecatedTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocSeeTag => {
-            let node = unsafe { JSDocSeeTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).nameExpression })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocImplementsTag => {
-            let node = unsafe { JSDocImplementsTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).className })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocAugmentsTag => {
-            let node = unsafe { JSDocAugmentsTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).className })
+        Kind::JSDocReturnTag => {
+            let node = unsafe { JSDocReturnTag::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).typeExpression })
                 || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
         }
         Kind::JSDocSatisfiesTag => {
             let node = unsafe { JSDocSatisfiesTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).typeExpression })
+            visit_node(f, unsafe { (*node.raw).typeExpression })
                 || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
         }
-        Kind::JSDocThrowsTag => {
-            let node = unsafe { JSDocThrowsTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).typeExpression })
+        Kind::JSDocSeeTag => {
+            let node = unsafe { JSDocSeeTag::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).nameExpression })
                 || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocThisTag => {
-            let node = unsafe { JSDocThisTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).typeExpression })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocImportTag => {
-            let node = unsafe { JSDocImportTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).importClause })
-                || visit_node(f, unsafe { (*node.raw).moduleSpecifier })
-                || visit_node(f, unsafe { (*node.raw).attributes })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocCallbackTag => {
-            let node = unsafe { JSDocCallbackTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).fullName })
-                || visit_node(f, unsafe { (*node.raw).typeExpression })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocOverloadTag => {
-            let node = unsafe { JSDocOverloadTag::from_node_unchecked(node) };
-            visit_node(f, unsafe { (*node.raw).tagName })
-                || visit_node(f, unsafe { (*node.raw).typeExpression })
-                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-        }
-        Kind::JSDocTypedefTag => {
-            let node = unsafe { JSDocTypedefTag::from_node_unchecked(node) };
-            let type_expression = unsafe { (*node.raw).typeExpression };
-            if !type_expression.is_null()
-                && unsafe { (*type_expression).kind } == Kind::JSDocTypeLiteral
-            {
-                visit_node(f, unsafe { (*node.raw).tagName })
-                    || visit_node(f, unsafe { (*node.raw).name })
-                    || visit_node(f, type_expression)
-                    || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-            } else {
-                visit_node(f, unsafe { (*node.raw).tagName })
-                    || visit_node(f, type_expression)
-                    || visit_node(f, unsafe { (*node.raw).name })
-                    || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
-            }
         }
         Kind::JSDocSignature => {
             let node = unsafe { JSDocSignature::from_node_unchecked(node) };
@@ -928,15 +424,572 @@ where
                 || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
                 || visit_node(f, unsafe { (*node.raw).r_type })
         }
-        Kind::JSDocNameReference => {
-            let node = unsafe { JSDocNameReference::from_node_unchecked(node) };
+        Kind::JSDocTemplateTag => {
+            let node = unsafe { JSDocTemplateTag::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocThisTag => {
+            let node = unsafe { JSDocThisTag::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).typeExpression })
+                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocThrowsTag => {
+            let node = unsafe { JSDocThrowsTag::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).typeExpression })
+                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocTypeExpression => {
+            let node = unsafe { JSDocTypeExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::JSDocTypeLiteral => {
+            let node = unsafe { JSDocTypeLiteral::from_node_unchecked(node) };
+            visit_node_slice(f, unsafe { (*node.raw).jSDocPropertyTags })
+        }
+        Kind::JSDocTypeTag => {
+            let node = unsafe { JSDocTypeTag::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocTypedefTag => {
+            let node = unsafe { JSDocTypedefTag::from_node_unchecked(node) };
             visit_node(f, unsafe { (*node.raw).name })
+                || visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocUnknownTag => {
+            let node = unsafe { JSDocUnknownTag::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).comment.cast() })
+        }
+        Kind::JSDocVariadicType => {
+            let node = unsafe { JSDocVariadicType::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::JsxAttribute => {
+            let node = unsafe { JsxAttribute::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).initializer })
+        }
+        Kind::JsxAttributes => {
+            let node = unsafe { JsxAttributes::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).properties.cast() })
+        }
+        Kind::JsxClosingElement => {
+            let node = unsafe { JsxClosingElement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).tagName })
+        }
+        Kind::JsxElement => {
+            let node = unsafe { JsxElement::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).children.cast() })
+        }
+        Kind::JsxExpression => {
+            let node = unsafe { JsxExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::JsxFragment => {
+            let node = unsafe { JsxFragment::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).children.cast() })
+        }
+        Kind::JsxOpeningElement => {
+            let node = unsafe { JsxOpeningElement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).tagName })
+                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
+        }
+        Kind::JsxSelfClosingElement => {
+            let node = unsafe { JsxSelfClosingElement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).tagName })
+                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
+        }
+        Kind::JsxSpreadAttribute => {
+            let node = unsafe { JsxSpreadAttribute::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::LabeledStatement => {
+            let node = unsafe { LabeledStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).statement })
+        }
+        Kind::MappedType => {
+            let node = unsafe { MappedTypeNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).typeParameter })
+                || visit_node(f, unsafe { (*node.raw).nameType })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node_list(f, unsafe { (*node.raw).members.cast() })
+        }
+        Kind::MethodDeclaration => {
+            let node = unsafe { MethodDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).fullSignature })
+                || visit_node(f, unsafe { (*node.raw).body })
+        }
+        Kind::MethodSignature => {
+            let node = unsafe { MethodSignatureDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::MissingDeclaration => {
+            let node = unsafe { MissingDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+        }
+        Kind::ModuleBlock => {
+            let node = unsafe { ModuleBlock::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).statements.cast() })
+        }
+        Kind::ModuleDeclaration => {
+            let node = unsafe { ModuleDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).body })
+        }
+        Kind::NamedTupleMember => {
+            let node = unsafe { NamedTupleMember::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::NamespaceExport => {
+            let node = unsafe { NamespaceExport::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).name })
+        }
+        Kind::NamespaceExportDeclaration => {
+            let node = unsafe { NamespaceExportDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+        }
+        Kind::NewExpression => {
+            let node = unsafe { NewExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).arguments.cast() })
+        }
+        Kind::NonNullExpression => {
+            let node = unsafe { NonNullExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::ObjectLiteralExpression => {
+            let node = unsafe { ObjectLiteralExpression::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).properties.cast() })
+        }
+        Kind::OptionalType => {
+            let node = unsafe { OptionalTypeNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::Parameter => {
+            let node = unsafe { ParameterDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).initializer })
+        }
+        Kind::ParenthesizedExpression => {
+            let node = unsafe { ParenthesizedExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::ParenthesizedType => {
+            let node = unsafe { ParenthesizedTypeNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::PartiallyEmittedExpression => {
+            let node = unsafe { PartiallyEmittedExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::PostfixUnaryExpression => {
+            let node = unsafe { PostfixUnaryExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).operand })
+        }
+        Kind::PrefixUnaryExpression => {
+            let node = unsafe { PrefixUnaryExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).operand })
+        }
+        Kind::PropertyAccessExpression => {
+            let node = unsafe { PropertyAccessExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).name })
+        }
+        Kind::PropertyAssignment => {
+            let node = unsafe { PropertyAssignment::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).initializer })
+        }
+        Kind::PropertyDeclaration => {
+            let node = unsafe { PropertyDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).initializer })
+        }
+        Kind::PropertySignature => {
+            let node = unsafe { PropertySignatureDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).initializer })
+        }
+        Kind::QualifiedName => {
+            let node = unsafe { QualifiedName::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).left })
+        }
+        Kind::RestType => {
+            let node = unsafe { RestTypeNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::ReturnStatement => {
+            let node = unsafe { ReturnStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::SatisfiesExpression => {
+            let node = unsafe { SatisfiesExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::SetAccessor => {
+            let node = unsafe { SetAccessorDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).parameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).fullSignature })
+                || visit_node(f, unsafe { (*node.raw).body })
+        }
+        Kind::ShorthandPropertyAssignment => {
+            let node = unsafe { ShorthandPropertyAssignment::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).objectAssignmentInitializer })
         }
         Kind::SourceFile => {
             let node = unsafe { SourceFile::from_node_unchecked(node) };
             visit_node_list(f, unsafe { (*node.raw).statements.cast() })
         }
+        Kind::SpreadAssignment => {
+            let node = unsafe { SpreadAssignment::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::SpreadElement => {
+            let node = unsafe { SpreadElement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::SwitchStatement => {
+            let node = unsafe { SwitchStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::SyntheticReferenceExpression => {
+            let node = unsafe { SyntheticReferenceExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).thisArg })
+        }
+        Kind::TaggedTemplateExpression => {
+            let node = unsafe { TaggedTemplateExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).tag })
+                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
+                || visit_node(f, unsafe { (*node.raw).template })
+        }
+        Kind::TemplateLiteralTypeSpan => {
+            let node = unsafe { TemplateLiteralTypeSpan::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).literal })
+        }
+        Kind::TemplateSpan => {
+            let node = unsafe { TemplateSpan::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).literal })
+        }
+        Kind::ThrowStatement => {
+            let node = unsafe { ThrowStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::TupleType => {
+            let node = unsafe { TupleTypeNode::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).elements.cast() })
+        }
+        Kind::TypeAliasDeclaration | Kind::JSTypeAliasDeclaration => {
+            let node = unsafe { TypeAliasDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node_list(f, unsafe { (*node.raw).typeParameters.cast() })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::TypeAssertionExpression => {
+            let node = unsafe { TypeAssertion::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::TypeLiteral => {
+            let node = unsafe { TypeLiteralNode::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).members.cast() })
+        }
+        Kind::TypeOfExpression => {
+            let node = unsafe { TypeOfExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::TypeOperator => {
+            let node = unsafe { TypeOperatorNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::TypeParameter => {
+            let node = unsafe { TypeParameterDeclaration::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+                || visit_node(f, unsafe { (*node.raw).constraint })
+                || visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).defaultType })
+        }
+        Kind::TypePredicate => {
+            let node = unsafe { TypePredicateNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).parameterName })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+        }
+        Kind::TypeQuery => {
+            let node = unsafe { TypeQueryNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).exprName })
+                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
+        }
+        Kind::TypeReference => {
+            let node = unsafe { TypeReferenceNode::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).typeName })
+                || visit_node_list(f, unsafe { (*node.raw).typeArguments.cast() })
+        }
+        Kind::UnionType => {
+            let node = unsafe { UnionTypeNode::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).types.cast() })
+        }
+        Kind::VariableDeclaration => {
+            let node = unsafe { VariableDeclaration::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).name })
+                || visit_node(f, unsafe { (*node.raw).r_type })
+                || visit_node(f, unsafe { (*node.raw).initializer })
+        }
+        Kind::VariableStatement => {
+            let node = unsafe { VariableStatement::from_node_unchecked(node) };
+            visit_node_list(f, unsafe { (*node.raw).modifiers.cast() })
+        }
+        Kind::VoidExpression => {
+            let node = unsafe { VoidExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
+        Kind::WhileStatement => {
+            let node = unsafe { WhileStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).statement })
+        }
+        Kind::WithStatement => {
+            let node = unsafe { WithStatement::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+                || visit_node(f, unsafe { (*node.raw).statement })
+        }
+        Kind::YieldExpression => {
+            let node = unsafe { YieldExpression::from_node_unchecked(node) };
+            visit_node(f, unsafe { (*node.raw).expression })
+        }
         _ => false,
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawToken {
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct Token<'a> {
+    pub(crate) raw: *const RawToken,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> Token<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+}
+
+impl<'a> FromNode<'a> for Token<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(
+            kind,
+            Kind::Unknown
+                | Kind::EndOfFile
+                | Kind::SingleLineCommentTrivia
+                | Kind::MultiLineCommentTrivia
+                | Kind::NewLineTrivia
+                | Kind::WhitespaceTrivia
+                | Kind::ConflictMarkerTrivia
+                | Kind::NonTextFileMarkerTrivia
+                | Kind::NumericLiteral
+                | Kind::BigIntLiteral
+                | Kind::StringLiteral
+                | Kind::JsxText
+                | Kind::JsxTextAllWhiteSpaces
+                | Kind::RegularExpressionLiteral
+                | Kind::NoSubstitutionTemplateLiteral
+                | Kind::TemplateHead
+                | Kind::TemplateMiddle
+                | Kind::TemplateTail
+                | Kind::OpenBraceToken
+                | Kind::CloseBraceToken
+                | Kind::OpenParenToken
+                | Kind::CloseParenToken
+                | Kind::OpenBracketToken
+                | Kind::CloseBracketToken
+                | Kind::DotToken
+                | Kind::DotDotDotToken
+                | Kind::SemicolonToken
+                | Kind::CommaToken
+                | Kind::QuestionDotToken
+                | Kind::LessThanToken
+                | Kind::LessThanSlashToken
+                | Kind::GreaterThanToken
+                | Kind::LessThanEqualsToken
+                | Kind::GreaterThanEqualsToken
+                | Kind::EqualsEqualsToken
+                | Kind::ExclamationEqualsToken
+                | Kind::EqualsEqualsEqualsToken
+                | Kind::ExclamationEqualsEqualsToken
+                | Kind::EqualsGreaterThanToken
+                | Kind::PlusToken
+                | Kind::MinusToken
+                | Kind::AsteriskToken
+                | Kind::AsteriskAsteriskToken
+                | Kind::SlashToken
+                | Kind::PercentToken
+                | Kind::PlusPlusToken
+                | Kind::MinusMinusToken
+                | Kind::LessThanLessThanToken
+                | Kind::GreaterThanGreaterThanToken
+                | Kind::GreaterThanGreaterThanGreaterThanToken
+                | Kind::AmpersandToken
+                | Kind::BarToken
+                | Kind::CaretToken
+                | Kind::ExclamationToken
+                | Kind::TildeToken
+                | Kind::AmpersandAmpersandToken
+                | Kind::BarBarToken
+                | Kind::QuestionToken
+                | Kind::ColonToken
+                | Kind::AtToken
+                | Kind::QuestionQuestionToken
+                | Kind::BacktickToken
+                | Kind::HashToken
+                | Kind::EqualsToken
+                | Kind::PlusEqualsToken
+                | Kind::MinusEqualsToken
+                | Kind::AsteriskEqualsToken
+                | Kind::AsteriskAsteriskEqualsToken
+                | Kind::SlashEqualsToken
+                | Kind::PercentEqualsToken
+                | Kind::LessThanLessThanEqualsToken
+                | Kind::GreaterThanGreaterThanEqualsToken
+                | Kind::GreaterThanGreaterThanGreaterThanEqualsToken
+                | Kind::AmpersandEqualsToken
+                | Kind::BarEqualsToken
+                | Kind::BarBarEqualsToken
+                | Kind::AmpersandAmpersandEqualsToken
+                | Kind::QuestionQuestionEqualsToken
+                | Kind::CaretEqualsToken
+                | Kind::Identifier
+                | Kind::PrivateIdentifier
+                | Kind::JSDocCommentTextToken
+                | Kind::BreakKeyword
+                | Kind::CaseKeyword
+                | Kind::CatchKeyword
+                | Kind::ClassKeyword
+                | Kind::ConstKeyword
+                | Kind::ContinueKeyword
+                | Kind::DebuggerKeyword
+                | Kind::DefaultKeyword
+                | Kind::DeleteKeyword
+                | Kind::DoKeyword
+                | Kind::ElseKeyword
+                | Kind::EnumKeyword
+                | Kind::ExportKeyword
+                | Kind::ExtendsKeyword
+                | Kind::FalseKeyword
+                | Kind::FinallyKeyword
+                | Kind::ForKeyword
+                | Kind::FunctionKeyword
+                | Kind::IfKeyword
+                | Kind::ImportKeyword
+                | Kind::InKeyword
+                | Kind::InstanceOfKeyword
+                | Kind::NewKeyword
+                | Kind::NullKeyword
+                | Kind::ReturnKeyword
+                | Kind::SuperKeyword
+                | Kind::SwitchKeyword
+                | Kind::ThisKeyword
+                | Kind::ThrowKeyword
+                | Kind::TrueKeyword
+                | Kind::TryKeyword
+                | Kind::TypeOfKeyword
+                | Kind::VarKeyword
+                | Kind::VoidKeyword
+                | Kind::WhileKeyword
+                | Kind::WithKeyword
+                | Kind::ImplementsKeyword
+                | Kind::InterfaceKeyword
+                | Kind::LetKeyword
+                | Kind::PackageKeyword
+                | Kind::PrivateKeyword
+                | Kind::ProtectedKeyword
+                | Kind::PublicKeyword
+                | Kind::StaticKeyword
+                | Kind::YieldKeyword
+                | Kind::AbstractKeyword
+                | Kind::AccessorKeyword
+                | Kind::AsKeyword
+                | Kind::AssertsKeyword
+                | Kind::AssertKeyword
+                | Kind::AnyKeyword
+                | Kind::AsyncKeyword
+                | Kind::AwaitKeyword
+                | Kind::BooleanKeyword
+                | Kind::ConstructorKeyword
+                | Kind::DeclareKeyword
+                | Kind::GetKeyword
+                | Kind::ImmediateKeyword
+                | Kind::InferKeyword
+                | Kind::IntrinsicKeyword
+                | Kind::IsKeyword
+                | Kind::KeyOfKeyword
+                | Kind::ModuleKeyword
+                | Kind::NamespaceKeyword
+                | Kind::NeverKeyword
+                | Kind::OutKeyword
+                | Kind::ReadonlyKeyword
+                | Kind::RequireKeyword
+                | Kind::NumberKeyword
+                | Kind::ObjectKeyword
+                | Kind::SatisfiesKeyword
+                | Kind::SetKeyword
+                | Kind::StringKeyword
+                | Kind::SymbolKeyword
+                | Kind::TypeKeyword
+                | Kind::UndefinedKeyword
+                | Kind::UniqueKeyword
+                | Kind::UnknownKeyword
+                | Kind::UsingKeyword
+                | Kind::FromKeyword
+                | Kind::GlobalKeyword
+                | Kind::BigIntKeyword
+                | Kind::OverrideKeyword
+                | Kind::OfKeyword
+                | Kind::DeferKeyword
+        )
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
     }
 }
 
@@ -958,7 +1011,7 @@ pub struct Identifier<'a> {
 impl<'a> Identifier<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn text(self) -> &'a str {
@@ -998,7 +1051,7 @@ pub struct PrivateIdentifier<'a> {
 impl<'a> PrivateIdentifier<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn text(self) -> &'a str {
@@ -1025,7 +1078,9 @@ impl<'a> FromNode<'a> for PrivateIdentifier<'a> {
 #[derive(Copy, Clone)]
 pub struct RawQualifiedName {
     pub node: RawNode,
-    pub _pad0: [u8; 16],
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
     pub left: *const RawNode,
     pub right: *const RawNode,
 }
@@ -1040,7 +1095,7 @@ pub struct QualifiedName<'a> {
 impl<'a> QualifiedName<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn left(self) -> Option<Node<'a>> {
@@ -1069,28 +1124,684 @@ impl<'a> FromNode<'a> for QualifiedName<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawSourceFile {
+pub struct RawComputedPropertyName {
     pub node: RawNode,
-    pub _pad0: [u8; 120],
-    pub text: GoString,
-    pub statements: *const RawNodeList,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub expression: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct SourceFile<'a> {
-    pub(crate) raw: *const RawSourceFile,
+pub struct ComputedPropertyName<'a> {
+    pub(crate) raw: *const RawComputedPropertyName,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> SourceFile<'a> {
+impl<'a> ComputedPropertyName<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for ComputedPropertyName<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ComputedPropertyName)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawDecorator {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct Decorator<'a> {
+    pub(crate) raw: *const RawDecorator,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> Decorator<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for Decorator<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::Decorator)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawEmptyStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct EmptyStatement<'a> {
+    pub(crate) raw: *const RawEmptyStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> EmptyStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+}
+
+impl<'a> FromNode<'a> for EmptyStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::EmptyStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawIfStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub expression: *const RawNode,
+    pub thenStatement: *const RawNode,
+    pub elseStatement: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IfStatement<'a> {
+    pub(crate) raw: *const RawIfStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> IfStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn then_statement(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).thenStatement })
+    }
+
+    pub fn else_statement(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).elseStatement })
+    }
+}
+
+impl<'a> FromNode<'a> for IfStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::IfStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawDoStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub statement: *const RawNode,
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct DoStatement<'a> {
+    pub(crate) raw: *const RawDoStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> DoStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn statement(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).statement })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for DoStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::DoStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawWhileStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub statement: *const RawNode,
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct WhileStatement<'a> {
+    pub(crate) raw: *const RawWhileStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> WhileStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn statement(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).statement })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for WhileStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::WhileStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawForStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub statement: *const RawNode,
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub _pad3: [u8; 4],
+    pub _pad4: [u8; 4],
+    pub initializer: *const RawNode,
+    pub condition: *const RawNode,
+    pub incrementor: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ForStatement<'a> {
+    pub(crate) raw: *const RawForStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ForStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn statement(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).statement })
+    }
+
+    pub fn initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).initializer })
+    }
+
+    pub fn condition(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).condition })
+    }
+
+    pub fn incrementor(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).incrementor })
+    }
+}
+
+impl<'a> FromNode<'a> for ForStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ForStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawForInOrOfStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub _pad3: [u8; 4],
+    pub _pad4: [u8; 4],
+    pub awaitModifier: *const RawNode,
+    pub initializer: *const RawNode,
+    pub expression: *const RawNode,
+    pub statement: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ForInOrOfStatement<'a> {
+    pub(crate) raw: *const RawForInOrOfStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ForInOrOfStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn await_modifier(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).awaitModifier })
+    }
+
+    pub fn initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).initializer })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn statement(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).statement })
+    }
+}
+
+impl<'a> FromNode<'a> for ForInOrOfStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ForInStatement | Kind::ForOfStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawBreakStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub label: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct BreakStatement<'a> {
+    pub(crate) raw: *const RawBreakStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> BreakStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn label(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).label })
+    }
+}
+
+impl<'a> FromNode<'a> for BreakStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::BreakStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawContinueStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub label: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ContinueStatement<'a> {
+    pub(crate) raw: *const RawContinueStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ContinueStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn label(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).label })
+    }
+}
+
+impl<'a> FromNode<'a> for ContinueStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ContinueStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawReturnStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ReturnStatement<'a> {
+    pub(crate) raw: *const RawReturnStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ReturnStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for ReturnStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ReturnStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawWithStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub expression: *const RawNode,
+    pub statement: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct WithStatement<'a> {
+    pub(crate) raw: *const RawWithStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> WithStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn statement(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).statement })
+    }
+}
+
+impl<'a> FromNode<'a> for WithStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::WithStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawSwitchStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub expression: *const RawNode,
+    pub caseBlock: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct SwitchStatement<'a> {
+    pub(crate) raw: *const RawSwitchStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> SwitchStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn case_block(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).caseBlock })
+    }
+}
+
+impl<'a> FromNode<'a> for SwitchStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::SwitchStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawCaseBlock {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 4],
+    pub _pad3: [u8; 4],
+    pub clauses: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct CaseBlock<'a> {
+    pub(crate) raw: *const RawCaseBlock,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> CaseBlock<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn clauses(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).clauses })
+    }
+}
+
+impl<'a> FromNode<'a> for CaseBlock<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::CaseBlock)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawCaseOrDefaultClause {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub expression: *const RawNode,
+    pub statements: *const RawNodeList,
+    pub _pad2: [u8; 8],
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct CaseOrDefaultClause<'a> {
+    pub(crate) raw: *const RawCaseOrDefaultClause,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> CaseOrDefaultClause<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
     }
 
     pub fn statements(self) -> Option<NodeList<'a>> {
@@ -1098,10 +1809,10 @@ impl<'a> SourceFile<'a> {
     }
 }
 
-impl<'a> FromNode<'a> for SourceFile<'a> {
+impl<'a> FromNode<'a> for CaseOrDefaultClause<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::SourceFile)
+        matches!(kind, Kind::CaseClause | Kind::DefaultClause)
     }
 
     #[inline(always)]
@@ -1115,113 +1826,25 @@ impl<'a> FromNode<'a> for SourceFile<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawPrefixUnaryExpression {
+pub struct RawThrowStatement {
     pub node: RawNode,
-    pub operator: Kind,
-    pub _pad0: [u8; 6],
-    pub operand: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct PrefixUnaryExpression<'a> {
-    pub(crate) raw: *const RawPrefixUnaryExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> PrefixUnaryExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn operator(self) -> Kind {
-        unsafe { (*self.raw).operator }
-    }
-
-    pub fn operand(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).operand })
-    }
-}
-
-impl<'a> FromNode<'a> for PrefixUnaryExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::PrefixUnaryExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawPostfixUnaryExpression {
-    pub node: RawNode,
-    pub operand: *const RawNode,
-    pub operator: Kind,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct PostfixUnaryExpression<'a> {
-    pub(crate) raw: *const RawPostfixUnaryExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> PostfixUnaryExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn operand(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).operand })
-    }
-
-    pub fn operator(self) -> Kind {
-        unsafe { (*self.raw).operator }
-    }
-}
-
-impl<'a> FromNode<'a> for PostfixUnaryExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::PostfixUnaryExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawParenthesizedExpression {
-    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
     pub expression: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct ParenthesizedExpression<'a> {
-    pub(crate) raw: *const RawParenthesizedExpression,
+pub struct ThrowStatement<'a> {
+    pub(crate) raw: *const RawThrowStatement,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ParenthesizedExpression<'a> {
+impl<'a> ThrowStatement<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn expression(self) -> Option<Node<'a>> {
@@ -1229,10 +1852,10 @@ impl<'a> ParenthesizedExpression<'a> {
     }
 }
 
-impl<'a> FromNode<'a> for ParenthesizedExpression<'a> {
+impl<'a> FromNode<'a> for ThrowStatement<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ParenthesizedExpression)
+        matches!(kind, Kind::ThrowStatement)
     }
 
     #[inline(always)]
@@ -1246,38 +1869,46 @@ impl<'a> FromNode<'a> for ParenthesizedExpression<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawTypeAssertion {
+pub struct RawTryStatement {
     pub node: RawNode,
-    pub r_type: *const RawNode,
-    pub expression: *const RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub tryBlock: *const RawNode,
+    pub catchClause: *const RawNode,
+    pub finallyBlock: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct TypeAssertion<'a> {
-    pub(crate) raw: *const RawTypeAssertion,
+pub struct TryStatement<'a> {
+    pub(crate) raw: *const RawTryStatement,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> TypeAssertion<'a> {
+impl<'a> TryStatement<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
+    pub fn try_block(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).tryBlock })
     }
 
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
+    pub fn catch_clause(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).catchClause })
+    }
+
+    pub fn finally_block(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).finallyBlock })
     }
 }
 
-impl<'a> FromNode<'a> for TypeAssertion<'a> {
+impl<'a> FromNode<'a> for TryStatement<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TypeAssertionExpression)
+        matches!(kind, Kind::TryStatement)
     }
 
     #[inline(always)]
@@ -1291,38 +1922,42 @@ impl<'a> FromNode<'a> for TypeAssertion<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawAsExpression {
+pub struct RawCatchClause {
     pub node: RawNode,
-    pub expression: *const RawNode,
-    pub r_type: *const RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 4],
+    pub _pad3: [u8; 4],
+    pub variableDeclaration: *const RawNode,
+    pub block: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct AsExpression<'a> {
-    pub(crate) raw: *const RawAsExpression,
+pub struct CatchClause<'a> {
+    pub(crate) raw: *const RawCatchClause,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> AsExpression<'a> {
+impl<'a> CatchClause<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
+    pub fn variable_declaration(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).variableDeclaration })
     }
 
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
+    pub fn block(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).block })
     }
 }
 
-impl<'a> FromNode<'a> for AsExpression<'a> {
+impl<'a> FromNode<'a> for CatchClause<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::AsExpression)
+        matches!(kind, Kind::CatchClause)
     }
 
     #[inline(always)]
@@ -1336,38 +1971,29 @@ impl<'a> FromNode<'a> for AsExpression<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawSatisfiesExpression {
+pub struct RawDebuggerStatement {
     pub node: RawNode,
-    pub expression: *const RawNode,
-    pub r_type: *const RawNode,
+    pub _pad0: [u8; 8],
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct SatisfiesExpression<'a> {
-    pub(crate) raw: *const RawSatisfiesExpression,
+pub struct DebuggerStatement<'a> {
+    pub(crate) raw: *const RawDebuggerStatement,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> SatisfiesExpression<'a> {
+impl<'a> DebuggerStatement<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 }
 
-impl<'a> FromNode<'a> for SatisfiesExpression<'a> {
+impl<'a> FromNode<'a> for DebuggerStatement<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::SatisfiesExpression)
+        matches!(kind, Kind::DebuggerStatement)
     }
 
     #[inline(always)]
@@ -1381,39 +2007,80 @@ impl<'a> FromNode<'a> for SatisfiesExpression<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawExpressionWithTypeArguments {
+pub struct RawLabeledStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub label: *const RawNode,
+    pub statement: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct LabeledStatement<'a> {
+    pub(crate) raw: *const RawLabeledStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> LabeledStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn label(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).label })
+    }
+
+    pub fn statement(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).statement })
+    }
+}
+
+impl<'a> FromNode<'a> for LabeledStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::LabeledStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawExpressionStatement {
     pub node: RawNode,
     pub _pad0: [u8; 8],
     pub expression: *const RawNode,
-    pub typeArguments: *const RawNodeList,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct ExpressionWithTypeArguments<'a> {
-    pub(crate) raw: *const RawExpressionWithTypeArguments,
+pub struct ExpressionStatement<'a> {
+    pub(crate) raw: *const RawExpressionStatement,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ExpressionWithTypeArguments<'a> {
+impl<'a> ExpressionStatement<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn expression(self) -> Option<Node<'a>> {
         node_from_raw(unsafe { (*self.raw).expression })
     }
-
-    pub fn type_arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeArguments })
-    }
 }
 
-impl<'a> FromNode<'a> for ExpressionWithTypeArguments<'a> {
+impl<'a> FromNode<'a> for ExpressionStatement<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ExpressionWithTypeArguments)
+        matches!(kind, Kind::ExpressionStatement)
     }
 
     #[inline(always)]
@@ -1427,33 +2094,314 @@ impl<'a> FromNode<'a> for ExpressionWithTypeArguments<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawNonNullExpression {
+pub struct RawBlock {
     pub node: RawNode,
-    pub expression: *const RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub _pad3: [u8; 4],
+    pub _pad4: [u8; 4],
+    pub statements: *const RawNodeList,
+    pub multiLine: u8,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct NonNullExpression<'a> {
-    pub(crate) raw: *const RawNonNullExpression,
+pub struct Block<'a> {
+    pub(crate) raw: *const RawBlock,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> NonNullExpression<'a> {
+impl<'a> Block<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
+    pub fn statements(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).statements })
+    }
+
+    pub fn multi_line(self) -> bool {
+        unsafe { (*self.raw).multiLine != 0 }
     }
 }
 
-impl<'a> FromNode<'a> for NonNullExpression<'a> {
+impl<'a> FromNode<'a> for Block<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NonNullExpression)
+        matches!(kind, Kind::Block)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawVariableStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub modifiers: *const RawModifierList,
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub declarationList: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct VariableStatement<'a> {
+    pub(crate) raw: *const RawVariableStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> VariableStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn declaration_list(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).declarationList })
+    }
+}
+
+impl<'a> FromNode<'a> for VariableStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::VariableStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawVariableDeclaration {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub localSymbol: *const RawSymbol,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub name: *const RawNode,
+    pub exclamationToken: *const RawNode,
+    pub r_type: *const RawNode,
+    pub initializer: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct VariableDeclaration<'a> {
+    pub(crate) raw: *const RawVariableDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> VariableDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn exclamation_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).exclamationToken })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).initializer })
+    }
+}
+
+impl<'a> FromNode<'a> for VariableDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::VariableDeclaration)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawVariableDeclarationList {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub declarations: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct VariableDeclarationList<'a> {
+    pub(crate) raw: *const RawVariableDeclarationList,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> VariableDeclarationList<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn declarations(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).declarations })
+    }
+}
+
+impl<'a> FromNode<'a> for VariableDeclarationList<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::VariableDeclarationList)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawBindingPattern {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub elements: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct BindingPattern<'a> {
+    pub(crate) raw: *const RawBindingPattern,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> BindingPattern<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn elements(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).elements })
+    }
+}
+
+impl<'a> FromNode<'a> for BindingPattern<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ObjectBindingPattern | Kind::ArrayBindingPattern)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawParameterDeclaration {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub dotDotDotToken: *const RawNode,
+    pub name: *const RawNode,
+    pub questionToken: *const RawNode,
+    pub r_type: *const RawNode,
+    pub initializer: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ParameterDeclaration<'a> {
+    pub(crate) raw: *const RawParameterDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ParameterDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn dot_dot_dot_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).dotDotDotToken })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn question_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).questionToken })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).initializer })
+    }
+}
+
+impl<'a> FromNode<'a> for ParameterDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::Parameter)
     }
 
     #[inline(always)]
@@ -1471,7 +2419,9 @@ pub struct RawBindingElement {
     pub node: RawNode,
     pub symbol: *const RawSymbol,
     pub localSymbol: *const RawSymbol,
-    pub _pad0: [u8; 16],
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
     pub dotDotDotToken: *const RawNode,
     pub propertyName: *const RawNode,
     pub name: *const RawNode,
@@ -1488,7 +2438,7 @@ pub struct BindingElement<'a> {
 impl<'a> BindingElement<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -1550,7 +2500,7 @@ pub struct MissingDeclaration<'a> {
 impl<'a> MissingDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -1579,1873 +2529,47 @@ impl<'a> FromNode<'a> for MissingDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawImportSpecifier {
-    pub node: RawNode,
+pub struct RawFunctionDeclaration {
     pub symbol: *const RawSymbol,
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
     pub localSymbol: *const RawSymbol,
-    pub _pad0: [u8; 4],
-    pub isTypeOnly: u8,
-    pub _pad1: [u8; 3],
-    pub propertyName: *const RawNode,
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ImportSpecifier<'a> {
-    pub(crate) raw: *const RawImportSpecifier,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ImportSpecifier<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn is_type_only(self) -> bool {
-        unsafe { (*self.raw).isTypeOnly != 0 }
-    }
-
-    pub fn property_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).propertyName })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for ImportSpecifier<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ImportSpecifier)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawArrowFunction {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad0: [u8; 16],
-    pub typeParameters: *const RawNodeList,
-    pub parameters: *const RawNodeList,
-    pub r_type: *const RawNode,
-    pub fullSignature: *const RawNode,
-    pub asteriskToken: *const RawNode,
-    pub body: *const RawNode,
-    pub _pad1: [u8; 24],
-    pub equalsGreaterThanToken: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ArrowFunction<'a> {
-    pub(crate) raw: *const RawArrowFunction,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ArrowFunction<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn type_parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeParameters })
-    }
-
-    pub fn parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).parameters })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn full_signature(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).fullSignature })
-    }
-
-    pub fn asterisk_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).asteriskToken })
-    }
-
-    pub fn body(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).body })
-    }
-
-    pub fn equals_greater_than_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).equalsGreaterThanToken })
-    }
-}
-
-impl<'a> FromNode<'a> for ArrowFunction<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ArrowFunction)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawCallExpression {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub _pad0: [u8; 8],
-    pub expression: *const RawNode,
-    pub questionDotToken: *const RawNode,
-    pub typeArguments: *const RawNodeList,
-    pub arguments: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct CallExpression<'a> {
-    pub(crate) raw: *const RawCallExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> CallExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn question_dot_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).questionDotToken })
-    }
-
-    pub fn type_arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeArguments })
-    }
-
-    pub fn arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).arguments })
-    }
-}
-
-impl<'a> FromNode<'a> for CallExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::CallExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawPropertyAccessExpression {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub expression: *const RawNode,
-    pub questionDotToken: *const RawNode,
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct PropertyAccessExpression<'a> {
-    pub(crate) raw: *const RawPropertyAccessExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> PropertyAccessExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn question_dot_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).questionDotToken })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for PropertyAccessExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::PropertyAccessExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawElementAccessExpression {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub expression: *const RawNode,
-    pub questionDotToken: *const RawNode,
-    pub argumentExpression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ElementAccessExpression<'a> {
-    pub(crate) raw: *const RawElementAccessExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ElementAccessExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn question_dot_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).questionDotToken })
-    }
-
-    pub fn argument_expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).argumentExpression })
-    }
-}
-
-impl<'a> FromNode<'a> for ElementAccessExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ElementAccessExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawComputedPropertyName {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ComputedPropertyName<'a> {
-    pub(crate) raw: *const RawComputedPropertyName,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ComputedPropertyName<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for ComputedPropertyName<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ComputedPropertyName)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawBinaryExpression {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad0: [u8; 8],
-    pub left: *const RawNode,
-    pub r_type: *const RawNode,
-    pub operatorToken: *const RawNode,
-    pub right: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct BinaryExpression<'a> {
-    pub(crate) raw: *const RawBinaryExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> BinaryExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn left(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).left })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn operator_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).operatorToken })
-    }
-
-    pub fn right(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).right })
-    }
-}
-
-impl<'a> FromNode<'a> for BinaryExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::BinaryExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawModuleDeclaration {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 16],
-    pub asteriskToken: *const RawNode,
-    pub body: *const RawNode,
-    pub _pad2: [u8; 16],
-    pub name: *const RawNode,
-    pub keyword: Kind,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ModuleDeclaration<'a> {
-    pub(crate) raw: *const RawModuleDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ModuleDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn asterisk_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).asteriskToken })
-    }
-
-    pub fn body(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).body })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn keyword(self) -> Kind {
-        unsafe { (*self.raw).keyword }
-    }
-}
-
-impl<'a> FromNode<'a> for ModuleDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ModuleDeclaration)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawStringLiteral {
-    pub node: RawNode,
-    pub text: GoString,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct StringLiteral<'a> {
-    pub(crate) raw: *const RawStringLiteral,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> StringLiteral<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
-    }
-}
-
-impl<'a> FromNode<'a> for StringLiteral<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::StringLiteral)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawNumericLiteral {
-    pub node: RawNode,
-    pub text: GoString,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct NumericLiteral<'a> {
-    pub(crate) raw: *const RawNumericLiteral,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> NumericLiteral<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
-    }
-}
-
-impl<'a> FromNode<'a> for NumericLiteral<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NumericLiteral)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawBigIntLiteral {
-    pub node: RawNode,
-    pub text: GoString,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct BigIntLiteral<'a> {
-    pub(crate) raw: *const RawBigIntLiteral,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> BigIntLiteral<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
-    }
-}
-
-impl<'a> FromNode<'a> for BigIntLiteral<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::BigIntLiteral)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawNoSubstitutionTemplateLiteral {
-    pub node: RawNode,
-    pub text: GoString,
-    pub _pad0: [u8; 8],
-    pub rawText: GoString,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct NoSubstitutionTemplateLiteral<'a> {
-    pub(crate) raw: *const RawNoSubstitutionTemplateLiteral,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> NoSubstitutionTemplateLiteral<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
-    }
-
-    pub fn raw_text(self) -> &'a str {
-        unsafe { (*self.raw).rawText.as_str() }
-    }
-}
-
-impl<'a> FromNode<'a> for NoSubstitutionTemplateLiteral<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NoSubstitutionTemplateLiteral)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawRegularExpressionLiteral {
-    pub node: RawNode,
-    pub text: GoString,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct RegularExpressionLiteral<'a> {
-    pub(crate) raw: *const RawRegularExpressionLiteral,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> RegularExpressionLiteral<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
-    }
-}
-
-impl<'a> FromNode<'a> for RegularExpressionLiteral<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::RegularExpressionLiteral)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTemplateHead {
-    pub node: RawNode,
-    pub text: GoString,
-    pub _pad0: [u8; 8],
-    pub rawText: GoString,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TemplateHead<'a> {
-    pub(crate) raw: *const RawTemplateHead,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TemplateHead<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
-    }
-
-    pub fn raw_text(self) -> &'a str {
-        unsafe { (*self.raw).rawText.as_str() }
-    }
-}
-
-impl<'a> FromNode<'a> for TemplateHead<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TemplateHead)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTemplateMiddle {
-    pub node: RawNode,
-    pub text: GoString,
-    pub _pad0: [u8; 8],
-    pub rawText: GoString,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TemplateMiddle<'a> {
-    pub(crate) raw: *const RawTemplateMiddle,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TemplateMiddle<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
-    }
-
-    pub fn raw_text(self) -> &'a str {
-        unsafe { (*self.raw).rawText.as_str() }
-    }
-}
-
-impl<'a> FromNode<'a> for TemplateMiddle<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TemplateMiddle)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTemplateTail {
-    pub node: RawNode,
-    pub text: GoString,
-    pub _pad0: [u8; 8],
-    pub rawText: GoString,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TemplateTail<'a> {
-    pub(crate) raw: *const RawTemplateTail,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TemplateTail<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
-    }
-
-    pub fn raw_text(self) -> &'a str {
-        unsafe { (*self.raw).rawText.as_str() }
-    }
-}
-
-impl<'a> FromNode<'a> for TemplateTail<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TemplateTail)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawVariableDeclaration {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
-    pub _pad0: [u8; 8],
-    pub name: *const RawNode,
-    pub exclamationToken: *const RawNode,
-    pub r_type: *const RawNode,
-    pub initializer: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct VariableDeclaration<'a> {
-    pub(crate) raw: *const RawVariableDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> VariableDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn exclamation_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).exclamationToken })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
-}
-
-impl<'a> FromNode<'a> for VariableDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::VariableDeclaration)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawExportAssignment {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 4],
-    pub isExportEquals: u8,
-    pub _pad2: [u8; 3],
-    pub r_type: *const RawNode,
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ExportAssignment<'a> {
-    pub(crate) raw: *const RawExportAssignment,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ExportAssignment<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn is_export_equals(self) -> bool {
-        unsafe { (*self.raw).isExportEquals != 0 }
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for ExportAssignment<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ExportAssignment)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawCommonJSExport {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub name: *const RawNode,
-    pub r_type: *const RawNode,
-    pub initializer: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct CommonJSExport<'a> {
-    pub(crate) raw: *const RawCommonJSExport,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> CommonJSExport<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
-}
-
-impl<'a> FromNode<'a> for CommonJSExport<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::CommonJSExport)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawObjectLiteralExpression {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub _pad0: [u8; 8],
-    pub properties: *const RawNodeList,
-    pub multiLine: u8,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ObjectLiteralExpression<'a> {
-    pub(crate) raw: *const RawObjectLiteralExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ObjectLiteralExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn properties(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).properties })
-    }
-
-    pub fn multi_line(self) -> bool {
-        unsafe { (*self.raw).multiLine != 0 }
-    }
-}
-
-impl<'a> FromNode<'a> for ObjectLiteralExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ObjectLiteralExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawIfStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub expression: *const RawNode,
-    pub thenStatement: *const RawNode,
-    pub elseStatement: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct IfStatement<'a> {
-    pub(crate) raw: *const RawIfStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> IfStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn then_statement(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).thenStatement })
-    }
-
-    pub fn else_statement(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).elseStatement })
-    }
-}
-
-impl<'a> FromNode<'a> for IfStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::IfStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawWhileStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub expression: *const RawNode,
-    pub statement: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct WhileStatement<'a> {
-    pub(crate) raw: *const RawWhileStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> WhileStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn statement(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).statement })
-    }
-}
-
-impl<'a> FromNode<'a> for WhileStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::WhileStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawDoStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub statement: *const RawNode,
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct DoStatement<'a> {
-    pub(crate) raw: *const RawDoStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> DoStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn statement(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).statement })
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for DoStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::DoStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawForStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 32],
-    pub initializer: *const RawNode,
-    pub condition: *const RawNode,
-    pub incrementor: *const RawNode,
-    pub statement: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ForStatement<'a> {
-    pub(crate) raw: *const RawForStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ForStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
-
-    pub fn condition(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).condition })
-    }
-
-    pub fn incrementor(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).incrementor })
-    }
-
-    pub fn statement(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).statement })
-    }
-}
-
-impl<'a> FromNode<'a> for ForStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ForStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawConditionalExpression {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub condition: *const RawNode,
-    pub questionToken: *const RawNode,
-    pub whenTrue: *const RawNode,
-    pub colonToken: *const RawNode,
-    pub whenFalse: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ConditionalExpression<'a> {
-    pub(crate) raw: *const RawConditionalExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ConditionalExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn condition(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).condition })
-    }
-
-    pub fn question_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).questionToken })
-    }
-
-    pub fn when_true(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).whenTrue })
-    }
-
-    pub fn colon_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).colonToken })
-    }
-
-    pub fn when_false(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).whenFalse })
-    }
-}
-
-impl<'a> FromNode<'a> for ConditionalExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ConditionalExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawForInOrOfStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 32],
-    pub awaitModifier: *const RawNode,
-    pub initializer: *const RawNode,
-    pub expression: *const RawNode,
-    pub statement: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ForInOrOfStatement<'a> {
-    pub(crate) raw: *const RawForInOrOfStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ForInOrOfStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn await_modifier(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).awaitModifier })
-    }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn statement(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).statement })
-    }
-}
-
-impl<'a> FromNode<'a> for ForInOrOfStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ForInStatement | Kind::ForOfStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawShorthandPropertyAssignment {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub name: *const RawNode,
-    pub postfixToken: *const RawNode,
-    pub _pad0: [u8; 8],
-    pub r_type: *const RawNode,
-    pub equalsToken: *const RawNode,
-    pub objectAssignmentInitializer: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ShorthandPropertyAssignment<'a> {
-    pub(crate) raw: *const RawShorthandPropertyAssignment,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ShorthandPropertyAssignment<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn postfix_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).postfixToken })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn equals_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).equalsToken })
-    }
-
-    pub fn object_assignment_initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).objectAssignmentInitializer })
-    }
-}
-
-impl<'a> FromNode<'a> for ShorthandPropertyAssignment<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ShorthandPropertyAssignment)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawPropertyAssignment {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub name: *const RawNode,
-    pub postfixToken: *const RawNode,
-    pub _pad0: [u8; 8],
-    pub r_type: *const RawNode,
-    pub initializer: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct PropertyAssignment<'a> {
-    pub(crate) raw: *const RawPropertyAssignment,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> PropertyAssignment<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn postfix_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).postfixToken })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
-}
-
-impl<'a> FromNode<'a> for PropertyAssignment<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::PropertyAssignment)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawExpressionStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ExpressionStatement<'a> {
-    pub(crate) raw: *const RawExpressionStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ExpressionStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for ExpressionStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ExpressionStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawBlock {
-    pub node: RawNode,
-    pub _pad0: [u8; 32],
-    pub statements: *const RawNodeList,
-    pub multiline: u8,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct Block<'a> {
-    pub(crate) raw: *const RawBlock,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> Block<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn statements(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).statements })
-    }
-
-    pub fn multiline(self) -> bool {
-        unsafe { (*self.raw).multiline != 0 }
-    }
-}
-
-impl<'a> FromNode<'a> for Block<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::Block)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawModuleBlock {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub statements: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ModuleBlock<'a> {
-    pub(crate) raw: *const RawModuleBlock,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ModuleBlock<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn statements(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).statements })
-    }
-}
-
-impl<'a> FromNode<'a> for ModuleBlock<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ModuleBlock)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawVariableStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
     pub modifiers: *const RawModifierList,
     pub _pad1: [u8; 8],
-    pub declarationList: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct VariableStatement<'a> {
-    pub(crate) raw: *const RawVariableStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> VariableStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn declaration_list(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).declarationList })
-    }
-}
-
-impl<'a> FromNode<'a> for VariableStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::VariableStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawVariableDeclarationList {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub declarations: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct VariableDeclarationList<'a> {
-    pub(crate) raw: *const RawVariableDeclarationList,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> VariableDeclarationList<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn declarations(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).declarations })
-    }
-}
-
-impl<'a> FromNode<'a> for VariableDeclarationList<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::VariableDeclarationList)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawMetaProperty {
-    pub node: RawNode,
-    pub _pad0: [u8; 12],
-    pub keywordToken: Kind,
-    pub _pad1: [u8; 2],
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct MetaProperty<'a> {
-    pub(crate) raw: *const RawMetaProperty,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> MetaProperty<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn keyword_token(self) -> Kind {
-        unsafe { (*self.raw).keywordToken }
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for MetaProperty<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::MetaProperty)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTypeReferenceNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub typeName: *const RawNode,
-    pub typeArguments: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TypeReferenceNode<'a> {
-    pub(crate) raw: *const RawTypeReferenceNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TypeReferenceNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn type_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).typeName })
-    }
-
-    pub fn type_arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeArguments })
-    }
-}
-
-impl<'a> FromNode<'a> for TypeReferenceNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TypeReference)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawConstructorDeclaration {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad0: [u8; 16],
+    pub _pad2: [u8; 8],
+    pub _pad3: [u8; 8],
     pub typeParameters: *const RawNodeList,
     pub parameters: *const RawNodeList,
     pub r_type: *const RawNode,
     pub fullSignature: *const RawNode,
     pub asteriskToken: *const RawNode,
     pub body: *const RawNode,
+    pub _pad4: [u8; 8],
+    pub _pad5: [u8; 4],
+    pub _pad6: [u8; 4],
+    pub name: *const RawNode,
+    pub _pad7: [u8; 8],
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct ConstructorDeclaration<'a> {
-    pub(crate) raw: *const RawConstructorDeclaration,
+pub struct FunctionDeclaration<'a> {
+    pub(crate) raw: *const RawFunctionDeclaration,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ConstructorDeclaration<'a> {
+impl<'a> FunctionDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
         symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
     }
 
     pub fn modifiers(self) -> Option<ModifierList<'a>> {
@@ -3475,18 +2599,22 @@ impl<'a> ConstructorDeclaration<'a> {
     pub fn body(self) -> Option<Node<'a>> {
         node_from_raw(unsafe { (*self.raw).body })
     }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
 }
 
-impl<'a> FromNode<'a> for ConstructorDeclaration<'a> {
+impl<'a> FromNode<'a> for FunctionDeclaration<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::Constructor)
+        matches!(kind, Kind::FunctionDeclaration)
     }
 
     #[inline(always)]
     unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
         Self {
-            raw: node.raw.cast(),
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
             _marker: marker::PhantomData,
         }
     }
@@ -3494,55 +2622,75 @@ impl<'a> FromNode<'a> for ConstructorDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawConditionalTypeNode {
+pub struct RawClassDeclaration {
+    pub symbol: *const RawSymbol,
     pub node: RawNode,
-    pub _pad0: [u8; 24],
-    pub checkType: *const RawNode,
-    pub extendsType: *const RawNode,
-    pub trueType: *const RawNode,
-    pub falseType: *const RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub localSymbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub _pad2: [u8; 8],
+    pub _pad3: [u8; 8],
+    pub _pad4: [u8; 4],
+    pub _pad5: [u8; 4],
+    pub name: *const RawNode,
+    pub typeParameters: *const RawNodeList,
+    pub heritageClauses: *const RawNodeList,
+    pub members: *const RawNodeList,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct ConditionalTypeNode<'a> {
-    pub(crate) raw: *const RawConditionalTypeNode,
+pub struct ClassDeclaration<'a> {
+    pub(crate) raw: *const RawClassDeclaration,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ConditionalTypeNode<'a> {
+impl<'a> ClassDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn check_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).checkType })
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 
-    pub fn extends_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).extendsType })
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
     }
 
-    pub fn true_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).trueType })
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
     }
 
-    pub fn false_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).falseType })
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn type_parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeParameters })
+    }
+
+    pub fn heritage_clauses(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).heritageClauses })
+    }
+
+    pub fn members(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).members })
     }
 }
 
-impl<'a> FromNode<'a> for ConditionalTypeNode<'a> {
+impl<'a> FromNode<'a> for ClassDeclaration<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ConditionalType)
+        matches!(kind, Kind::ClassDeclaration)
     }
 
     #[inline(always)]
     unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
         Self {
-            raw: node.raw.cast(),
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
             _marker: marker::PhantomData,
         }
     }
@@ -3555,7 +2703,10 @@ pub struct RawClassExpression {
     pub symbol: *const RawSymbol,
     pub localSymbol: *const RawSymbol,
     pub modifiers: *const RawModifierList,
-    pub _pad0: [u8; 24],
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 4],
+    pub _pad3: [u8; 4],
     pub name: *const RawNode,
     pub typeParameters: *const RawNodeList,
     pub heritageClauses: *const RawNodeList,
@@ -3572,7 +2723,7 @@ pub struct ClassExpression<'a> {
 impl<'a> ClassExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -3639,7 +2790,7 @@ pub struct HeritageClause<'a> {
 impl<'a> HeritageClause<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn token(self) -> Kind {
@@ -3668,1714 +2819,10 @@ impl<'a> FromNode<'a> for HeritageClause<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawFunctionExpression {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad0: [u8; 16],
-    pub typeParameters: *const RawNodeList,
-    pub parameters: *const RawNodeList,
-    pub r_type: *const RawNode,
-    pub fullSignature: *const RawNode,
-    pub asteriskToken: *const RawNode,
-    pub body: *const RawNode,
-    pub _pad1: [u8; 24],
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct FunctionExpression<'a> {
-    pub(crate) raw: *const RawFunctionExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> FunctionExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn type_parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeParameters })
-    }
-
-    pub fn parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).parameters })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn full_signature(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).fullSignature })
-    }
-
-    pub fn asterisk_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).asteriskToken })
-    }
-
-    pub fn body(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).body })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for FunctionExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::FunctionExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawParameterDeclaration {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad0: [u8; 8],
-    pub dotDotDotToken: *const RawNode,
-    pub name: *const RawNode,
-    pub questionToken: *const RawNode,
-    pub r_type: *const RawNode,
-    pub initializer: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ParameterDeclaration<'a> {
-    pub(crate) raw: *const RawParameterDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ParameterDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn dot_dot_dot_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).dotDotDotToken })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn question_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).questionToken })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
-}
-
-impl<'a> FromNode<'a> for ParameterDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::Parameter)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawDecorator {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct Decorator<'a> {
-    pub(crate) raw: *const RawDecorator,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> Decorator<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for Decorator<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::Decorator)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawInferTypeNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub typeParameter: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct InferTypeNode<'a> {
-    pub(crate) raw: *const RawInferTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> InferTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn type_parameter(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).typeParameter })
-    }
-}
-
-impl<'a> FromNode<'a> for InferTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::InferType)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTypeParameterDeclaration {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub name: *const RawNode,
-    pub constraint: *const RawNode,
-    pub expression: *const RawNode,
-    pub defaultType: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TypeParameterDeclaration<'a> {
-    pub(crate) raw: *const RawTypeParameterDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TypeParameterDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn constraint(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).constraint })
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn default_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).defaultType })
-    }
-}
-
-impl<'a> FromNode<'a> for TypeParameterDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TypeParameter)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawExportSpecifier {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
-    pub _pad0: [u8; 4],
-    pub isTypeOnly: u8,
-    pub _pad1: [u8; 3],
-    pub propertyName: *const RawNode,
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ExportSpecifier<'a> {
-    pub(crate) raw: *const RawExportSpecifier,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ExportSpecifier<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn is_type_only(self) -> bool {
-        unsafe { (*self.raw).isTypeOnly != 0 }
-    }
-
-    pub fn property_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).propertyName })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for ExportSpecifier<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ExportSpecifier)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawExportDeclaration {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 4],
-    pub isTypeOnly: u8,
-    pub _pad2: [u8; 3],
-    pub exportClause: *const RawNode,
-    pub moduleSpecifier: *const RawNode,
-    pub attributes: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ExportDeclaration<'a> {
-    pub(crate) raw: *const RawExportDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ExportDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn is_type_only(self) -> bool {
-        unsafe { (*self.raw).isTypeOnly != 0 }
-    }
-
-    pub fn export_clause(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).exportClause })
-    }
-
-    pub fn module_specifier(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).moduleSpecifier })
-    }
-
-    pub fn attributes(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).attributes })
-    }
-}
-
-impl<'a> FromNode<'a> for ExportDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ExportDeclaration)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawPropertyDeclaration {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub name: *const RawNode,
-    pub postfixToken: *const RawNode,
-    pub _pad0: [u8; 8],
-    pub r_type: *const RawNode,
-    pub initializer: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct PropertyDeclaration<'a> {
-    pub(crate) raw: *const RawPropertyDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> PropertyDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn postfix_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).postfixToken })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
-}
-
-impl<'a> FromNode<'a> for PropertyDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::PropertyDeclaration)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawImportClause {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
-    pub _pad0: [u8; 4],
-    pub phaseModifier: Kind,
-    pub _pad1: [u8; 2],
-    pub namedBindings: *const RawNode,
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ImportClause<'a> {
-    pub(crate) raw: *const RawImportClause,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ImportClause<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn phase_modifier(self) -> Kind {
-        unsafe { (*self.raw).phaseModifier }
-    }
-
-    pub fn named_bindings(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).namedBindings })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for ImportClause<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ImportClause)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawImportEqualsDeclaration {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 4],
-    pub isTypeOnly: u8,
-    pub _pad2: [u8; 3],
-    pub name: *const RawNode,
-    pub moduleReference: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ImportEqualsDeclaration<'a> {
-    pub(crate) raw: *const RawImportEqualsDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ImportEqualsDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn is_type_only(self) -> bool {
-        unsafe { (*self.raw).isTypeOnly != 0 }
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn module_reference(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).moduleReference })
-    }
-}
-
-impl<'a> FromNode<'a> for ImportEqualsDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ImportEqualsDeclaration)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawNamespaceImport {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct NamespaceImport<'a> {
-    pub(crate) raw: *const RawNamespaceImport,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> NamespaceImport<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for NamespaceImport<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NamespaceImport)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawPropertySignatureDeclaration {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub name: *const RawNode,
-    pub postfixToken: *const RawNode,
-    pub r_type: *const RawNode,
-    pub initializer: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct PropertySignatureDeclaration<'a> {
-    pub(crate) raw: *const RawPropertySignatureDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> PropertySignatureDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn postfix_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).postfixToken })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
-}
-
-impl<'a> FromNode<'a> for PropertySignatureDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::PropertySignature)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawEnumMember {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub name: *const RawNode,
-    pub postfixToken: *const RawNode,
-    pub _pad0: [u8; 8],
-    pub initializer: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct EnumMember<'a> {
-    pub(crate) raw: *const RawEnumMember,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> EnumMember<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn postfix_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).postfixToken })
-    }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
-}
-
-impl<'a> FromNode<'a> for EnumMember<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::EnumMember)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawReturnStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ReturnStatement<'a> {
-    pub(crate) raw: *const RawReturnStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ReturnStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for ReturnStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ReturnStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawWithStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub expression: *const RawNode,
-    pub statement: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct WithStatement<'a> {
-    pub(crate) raw: *const RawWithStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> WithStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn statement(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).statement })
-    }
-}
-
-impl<'a> FromNode<'a> for WithStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::WithStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawSwitchStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub expression: *const RawNode,
-    pub caseBlock: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct SwitchStatement<'a> {
-    pub(crate) raw: *const RawSwitchStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> SwitchStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn case_block(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).caseBlock })
-    }
-}
-
-impl<'a> FromNode<'a> for SwitchStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::SwitchStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawCaseOrDefaultClause {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub expression: *const RawNode,
-    pub statements: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct CaseOrDefaultClause<'a> {
-    pub(crate) raw: *const RawCaseOrDefaultClause,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> CaseOrDefaultClause<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn statements(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).statements })
-    }
-}
-
-impl<'a> FromNode<'a> for CaseOrDefaultClause<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::CaseClause | Kind::DefaultClause)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawThrowStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ThrowStatement<'a> {
-    pub(crate) raw: *const RawThrowStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ThrowStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for ThrowStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ThrowStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTemplateSpan {
-    pub node: RawNode,
-    pub expression: *const RawNode,
-    pub literal: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TemplateSpan<'a> {
-    pub(crate) raw: *const RawTemplateSpan,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TemplateSpan<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn literal(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).literal })
-    }
-}
-
-impl<'a> FromNode<'a> for TemplateSpan<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TemplateSpan)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawImportTypeNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub isTypeOf: u8,
-    pub _pad1: [u8; 7],
-    pub argument: *const RawNode,
-    pub attributes: *const RawNode,
-    pub qualifier: *const RawNode,
-    pub typeArguments: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ImportTypeNode<'a> {
-    pub(crate) raw: *const RawImportTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ImportTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn is_type_of(self) -> bool {
-        unsafe { (*self.raw).isTypeOf != 0 }
-    }
-
-    pub fn argument(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).argument })
-    }
-
-    pub fn attributes(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).attributes })
-    }
-
-    pub fn qualifier(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).qualifier })
-    }
-
-    pub fn type_arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeArguments })
-    }
-}
-
-impl<'a> FromNode<'a> for ImportTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ImportType)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawNewExpression {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub expression: *const RawNode,
-    pub typeArguments: *const RawNodeList,
-    pub arguments: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct NewExpression<'a> {
-    pub(crate) raw: *const RawNewExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> NewExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-
-    pub fn type_arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeArguments })
-    }
-
-    pub fn arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).arguments })
-    }
-}
-
-impl<'a> FromNode<'a> for NewExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NewExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTaggedTemplateExpression {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub tag: *const RawNode,
-    pub questionDotToken: *const RawNode,
-    pub typeArguments: *const RawNodeList,
-    pub template: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TaggedTemplateExpression<'a> {
-    pub(crate) raw: *const RawTaggedTemplateExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TaggedTemplateExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn tag(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).tag })
-    }
-
-    pub fn question_dot_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).questionDotToken })
-    }
-
-    pub fn type_arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeArguments })
-    }
-
-    pub fn template(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).template })
-    }
-}
-
-impl<'a> FromNode<'a> for TaggedTemplateExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TaggedTemplateExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJsxOpeningElement {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub tagName: *const RawNode,
-    pub typeArguments: *const RawNodeList,
-    pub attributes: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxOpeningElement<'a> {
-    pub(crate) raw: *const RawJsxOpeningElement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxOpeningElement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn tag_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).tagName })
-    }
-
-    pub fn type_arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeArguments })
-    }
-
-    pub fn attributes(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).attributes })
-    }
-}
-
-impl<'a> FromNode<'a> for JsxOpeningElement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxOpeningElement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJsxSelfClosingElement {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub tagName: *const RawNode,
-    pub typeArguments: *const RawNodeList,
-    pub attributes: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxSelfClosingElement<'a> {
-    pub(crate) raw: *const RawJsxSelfClosingElement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxSelfClosingElement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn tag_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).tagName })
-    }
-
-    pub fn type_arguments(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeArguments })
-    }
-
-    pub fn attributes(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).attributes })
-    }
-}
-
-impl<'a> FromNode<'a> for JsxSelfClosingElement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxSelfClosingElement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJsxClosingElement {
-    pub node: RawNode,
-    pub tagName: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxClosingElement<'a> {
-    pub(crate) raw: *const RawJsxClosingElement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxClosingElement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn tag_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).tagName })
-    }
-}
-
-impl<'a> FromNode<'a> for JsxClosingElement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxClosingElement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJsxOpeningFragment {
-    pub node: RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxOpeningFragment<'a> {
-    pub(crate) raw: *const RawJsxOpeningFragment,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxOpeningFragment<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-}
-
-impl<'a> FromNode<'a> for JsxOpeningFragment<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxOpeningFragment)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJsxClosingFragment {
-    pub node: RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxClosingFragment<'a> {
-    pub(crate) raw: *const RawJsxClosingFragment,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxClosingFragment<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-}
-
-impl<'a> FromNode<'a> for JsxClosingFragment<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxClosingFragment)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawImportDeclaration {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 8],
-    pub importClause: *const RawNode,
-    pub moduleSpecifier: *const RawNode,
-    pub attributes: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ImportDeclaration<'a> {
-    pub(crate) raw: *const RawImportDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ImportDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn import_clause(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).importClause })
-    }
-
-    pub fn module_specifier(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).moduleSpecifier })
-    }
-
-    pub fn attributes(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).attributes })
-    }
-}
-
-impl<'a> FromNode<'a> for ImportDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ImportDeclaration)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawExternalModuleReference {
-    pub node: RawNode,
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ExternalModuleReference<'a> {
-    pub(crate) raw: *const RawExternalModuleReference,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ExternalModuleReference<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for ExternalModuleReference<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ExternalModuleReference)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawLiteralTypeNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub literal: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct LiteralTypeNode<'a> {
-    pub(crate) raw: *const RawLiteralTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> LiteralTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn literal(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).literal })
-    }
-}
-
-impl<'a> FromNode<'a> for LiteralTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::LiteralType)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJsxNamespacedName {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub name: *const RawNode,
-    pub namespace: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxNamespacedName<'a> {
-    pub(crate) raw: *const RawJsxNamespacedName,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxNamespacedName<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn namespace(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).namespace })
-    }
-}
-
-impl<'a> FromNode<'a> for JsxNamespacedName<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxNamespacedName)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawClassDeclaration {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 24],
-    pub name: *const RawNode,
-    pub typeParameters: *const RawNodeList,
-    pub heritageClauses: *const RawNodeList,
-    pub members: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ClassDeclaration<'a> {
-    pub(crate) raw: *const RawClassDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ClassDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn type_parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeParameters })
-    }
-
-    pub fn heritage_clauses(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).heritageClauses })
-    }
-
-    pub fn members(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).members })
-    }
-}
-
-impl<'a> FromNode<'a> for ClassDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ClassDeclaration)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
 pub struct RawInterfaceDeclaration {
+    pub symbol: *const RawSymbol,
     pub node: RawNode,
     pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
     pub localSymbol: *const RawSymbol,
     pub modifiers: *const RawModifierList,
     pub name: *const RawNode,
@@ -5394,7 +2841,7 @@ pub struct InterfaceDeclaration<'a> {
 impl<'a> InterfaceDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -5435,7 +2882,7 @@ impl<'a> FromNode<'a> for InterfaceDeclaration<'a> {
     #[inline(always)]
     unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
         Self {
-            raw: node.raw.cast(),
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
             _marker: marker::PhantomData,
         }
     }
@@ -5444,12 +2891,13 @@ impl<'a> FromNode<'a> for InterfaceDeclaration<'a> {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct RawTypeAliasDeclaration {
+    pub symbol: *const RawSymbol,
     pub node: RawNode,
     pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
     pub localSymbol: *const RawSymbol,
     pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 16],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
     pub name: *const RawNode,
     pub typeParameters: *const RawNodeList,
     pub r_type: *const RawNode,
@@ -5465,7 +2913,7 @@ pub struct TypeAliasDeclaration<'a> {
 impl<'a> TypeAliasDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -5496,7 +2944,72 @@ impl<'a> TypeAliasDeclaration<'a> {
 impl<'a> FromNode<'a> for TypeAliasDeclaration<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TypeAliasDeclaration)
+        matches!(
+            kind,
+            Kind::TypeAliasDeclaration | Kind::JSTypeAliasDeclaration
+        )
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawEnumMember {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub name: *const RawNode,
+    pub postfixToken: *const RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub initializer: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct EnumMember<'a> {
+    pub(crate) raw: *const RawEnumMember,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> EnumMember<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn postfix_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).postfixToken })
+    }
+
+    pub fn initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).initializer })
+    }
+}
+
+impl<'a> FromNode<'a> for EnumMember<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::EnumMember)
     }
 
     #[inline(always)]
@@ -5510,25 +3023,509 @@ impl<'a> FromNode<'a> for TypeAliasDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawJsxAttribute {
-    pub node: RawNode,
+pub struct RawEnumDeclaration {
     pub symbol: *const RawSymbol,
+    pub node: RawNode,
     pub _pad0: [u8; 8],
+    pub localSymbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
     pub name: *const RawNode,
-    pub initializer: *const RawNode,
+    pub members: *const RawNodeList,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct JsxAttribute<'a> {
-    pub(crate) raw: *const RawJsxAttribute,
+pub struct EnumDeclaration<'a> {
+    pub(crate) raw: *const RawEnumDeclaration,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> JsxAttribute<'a> {
+impl<'a> EnumDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn members(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).members })
+    }
+}
+
+impl<'a> FromNode<'a> for EnumDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::EnumDeclaration)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawModuleBlock {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub statements: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ModuleBlock<'a> {
+    pub(crate) raw: *const RawModuleBlock,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ModuleBlock<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn statements(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).statements })
+    }
+}
+
+impl<'a> FromNode<'a> for ModuleBlock<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ModuleBlock)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNotEmittedStatement {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NotEmittedStatement<'a> {
+    pub(crate) raw: *const RawNotEmittedStatement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NotEmittedStatement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+}
+
+impl<'a> FromNode<'a> for NotEmittedStatement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NotEmittedStatement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNotEmittedTypeElement {
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NotEmittedTypeElement<'a> {
+    pub(crate) raw: *const RawNotEmittedTypeElement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NotEmittedTypeElement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+}
+
+impl<'a> FromNode<'a> for NotEmittedTypeElement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NotEmittedTypeElement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawImportDeclaration {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub modifiers: *const RawModifierList,
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub symbol: *const RawSymbol,
+    pub importClause: *const RawNode,
+    pub moduleSpecifier: *const RawNode,
+    pub attributes: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ImportDeclaration<'a> {
+    pub(crate) raw: *const RawImportDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ImportDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn import_clause(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).importClause })
+    }
+
+    pub fn module_specifier(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).moduleSpecifier })
+    }
+
+    pub fn attributes(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).attributes })
+    }
+}
+
+impl<'a> FromNode<'a> for ImportDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ImportDeclaration | Kind::JSImportDeclaration)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawExternalModuleReference {
+    pub node: RawNode,
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ExternalModuleReference<'a> {
+    pub(crate) raw: *const RawExternalModuleReference,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ExternalModuleReference<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for ExternalModuleReference<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ExternalModuleReference)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNamespaceImport {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub localSymbol: *const RawSymbol,
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NamespaceImport<'a> {
+    pub(crate) raw: *const RawNamespaceImport,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NamespaceImport<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+}
+
+impl<'a> FromNode<'a> for NamespaceImport<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NamespaceImport)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNamedImports {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub elements: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NamedImports<'a> {
+    pub(crate) raw: *const RawNamedImports,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NamedImports<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn elements(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).elements })
+    }
+}
+
+impl<'a> FromNode<'a> for NamedImports<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NamedImports)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawExportAssignment {
+    pub symbol: *const RawSymbol,
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub modifiers: *const RawModifierList,
+    pub _pad1: [u8; 4],
+    pub isExportEquals: u8,
+    pub _pad2: [u8; 3],
+    pub r_type: *const RawNode,
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ExportAssignment<'a> {
+    pub(crate) raw: *const RawExportAssignment,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ExportAssignment<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn is_export_equals(self) -> bool {
+        unsafe { (*self.raw).isExportEquals != 0 }
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for ExportAssignment<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ExportAssignment)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNamespaceExportDeclaration {
+    pub symbol: *const RawSymbol,
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub modifiers: *const RawModifierList,
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NamespaceExportDeclaration<'a> {
+    pub(crate) raw: *const RawNamespaceExportDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NamespaceExportDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+}
+
+impl<'a> FromNode<'a> for NamespaceExportDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NamespaceExportDeclaration)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNamespaceExport {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NamespaceExport<'a> {
+    pub(crate) raw: *const RawNamespaceExport,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NamespaceExport<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -5538,16 +3535,12 @@ impl<'a> JsxAttribute<'a> {
     pub fn name(self) -> Option<Node<'a>> {
         node_from_raw(unsafe { (*self.raw).name })
     }
-
-    pub fn initializer(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).initializer })
-    }
 }
 
-impl<'a> FromNode<'a> for JsxAttribute<'a> {
+impl<'a> FromNode<'a> for NamespaceExport<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxAttribute)
+        matches!(kind, Kind::NamespaceExport)
     }
 
     #[inline(always)]
@@ -5561,511 +3554,635 @@ impl<'a> FromNode<'a> for JsxAttribute<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawJsxAttributes {
+pub struct RawNamedExports {
     pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub _pad0: [u8; 8],
-    pub properties: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxAttributes<'a> {
-    pub(crate) raw: *const RawJsxAttributes,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxAttributes<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn properties(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).properties })
-    }
-}
-
-impl<'a> FromNode<'a> for JsxAttributes<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxAttributes)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJsxSpreadAttribute {
-    pub node: RawNode,
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxSpreadAttribute<'a> {
-    pub(crate) raw: *const RawJsxSpreadAttribute,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxSpreadAttribute<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for JsxSpreadAttribute<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxSpreadAttribute)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJsxExpression {
-    pub node: RawNode,
-    pub dotDotDotToken: *const RawNode,
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxExpression<'a> {
-    pub(crate) raw: *const RawJsxExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn dot_dot_dot_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).dotDotDotToken })
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for JsxExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJsxText {
-    pub node: RawNode,
-    pub text: GoString,
-    pub _pad0: [u8; 8],
-    pub containsOnlyTriviaWhiteSpaces: u8,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JsxText<'a> {
-    pub(crate) raw: *const RawJsxText,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JsxText<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> &'a str {
-        unsafe { (*self.raw).text.as_str() }
-    }
-
-    pub fn contains_only_trivia_white_spaces(self) -> bool {
-        unsafe { (*self.raw).containsOnlyTriviaWhiteSpaces != 0 }
-    }
-}
-
-impl<'a> FromNode<'a> for JsxText<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxText)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawKeywordTypeNode {
-    pub node: RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct KeywordTypeNode<'a> {
-    pub(crate) raw: *const RawKeywordTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> KeywordTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-}
-
-impl<'a> FromNode<'a> for KeywordTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(
-            kind,
-            Kind::AnyKeyword
-                | Kind::UnknownKeyword
-                | Kind::NumberKeyword
-                | Kind::BigIntKeyword
-                | Kind::ObjectKeyword
-                | Kind::BooleanKeyword
-                | Kind::StringKeyword
-                | Kind::SymbolKeyword
-                | Kind::VoidKeyword
-                | Kind::UndefinedKeyword
-                | Kind::NeverKeyword
-                | Kind::IntrinsicKeyword
-        )
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawThisTypeNode {
-    pub node: RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ThisTypeNode<'a> {
-    pub(crate) raw: *const RawThisTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ThisTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-}
-
-impl<'a> FromNode<'a> for ThisTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ThisType)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawParenthesizedTypeNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub r_type: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ParenthesizedTypeNode<'a> {
-    pub(crate) raw: *const RawParenthesizedTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ParenthesizedTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-}
-
-impl<'a> FromNode<'a> for ParenthesizedTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ParenthesizedType)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTypePredicateNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub assertsModifier: *const RawNode,
-    pub parameterName: *const RawNode,
-    pub r_type: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TypePredicateNode<'a> {
-    pub(crate) raw: *const RawTypePredicateNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TypePredicateNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn asserts_modifier(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).assertsModifier })
-    }
-
-    pub fn parameter_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).parameterName })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-}
-
-impl<'a> FromNode<'a> for TypePredicateNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TypePredicate)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTypeOperatorNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub operator: Kind,
-    pub _pad1: [u8; 6],
-    pub r_type: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TypeOperatorNode<'a> {
-    pub(crate) raw: *const RawTypeOperatorNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TypeOperatorNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn operator(self) -> Kind {
-        unsafe { (*self.raw).operator }
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-}
-
-impl<'a> FromNode<'a> for TypeOperatorNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TypeOperator)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawMappedTypeNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
-    pub _pad1: [u8; 16],
-    pub readonlyToken: *const RawNode,
-    pub typeParameter: *const RawNode,
-    pub nameType: *const RawNode,
-    pub questionToken: *const RawNode,
-    pub r_type: *const RawNode,
-    pub members: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct MappedTypeNode<'a> {
-    pub(crate) raw: *const RawMappedTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> MappedTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn readonly_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).readonlyToken })
-    }
-
-    pub fn type_parameter(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).typeParameter })
-    }
-
-    pub fn name_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).nameType })
-    }
-
-    pub fn question_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).questionToken })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn members(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).members })
-    }
-}
-
-impl<'a> FromNode<'a> for MappedTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::MappedType)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawArrayLiteralExpression {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
     pub elements: *const RawNodeList,
-    pub multiLine: u8,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct ArrayLiteralExpression<'a> {
-    pub(crate) raw: *const RawArrayLiteralExpression,
+pub struct NamedExports<'a> {
+    pub(crate) raw: *const RawNamedExports,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ArrayLiteralExpression<'a> {
+impl<'a> NamedExports<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn elements(self) -> Option<NodeList<'a>> {
         node_list_from_raw(unsafe { (*self.raw).elements })
     }
+}
 
-    pub fn multi_line(self) -> bool {
-        unsafe { (*self.raw).multiLine != 0 }
+impl<'a> FromNode<'a> for NamedExports<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NamedExports)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
     }
 }
 
-impl<'a> FromNode<'a> for ArrayLiteralExpression<'a> {
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawExportSpecifier {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub localSymbol: *const RawSymbol,
+    pub _pad0: [u8; 4],
+    pub isTypeOnly: u8,
+    pub _pad1: [u8; 3],
+    pub propertyName: *const RawNode,
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ExportSpecifier<'a> {
+    pub(crate) raw: *const RawExportSpecifier,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ExportSpecifier<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
+    }
+
+    pub fn is_type_only(self) -> bool {
+        unsafe { (*self.raw).isTypeOnly != 0 }
+    }
+
+    pub fn property_name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).propertyName })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+}
+
+impl<'a> FromNode<'a> for ExportSpecifier<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ArrayLiteralExpression)
+        matches!(kind, Kind::ExportSpecifier)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawCallSignatureDeclaration {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub typeParameters: *const RawNodeList,
+    pub parameters: *const RawNodeList,
+    pub r_type: *const RawNode,
+    pub fullSignature: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct CallSignatureDeclaration<'a> {
+    pub(crate) raw: *const RawCallSignatureDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> CallSignatureDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn type_parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeParameters })
+    }
+
+    pub fn parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).parameters })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn full_signature(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).fullSignature })
+    }
+}
+
+impl<'a> FromNode<'a> for CallSignatureDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::CallSignature)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawConstructSignatureDeclaration {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub typeParameters: *const RawNodeList,
+    pub parameters: *const RawNodeList,
+    pub r_type: *const RawNode,
+    pub fullSignature: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ConstructSignatureDeclaration<'a> {
+    pub(crate) raw: *const RawConstructSignatureDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ConstructSignatureDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn type_parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeParameters })
+    }
+
+    pub fn parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).parameters })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn full_signature(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).fullSignature })
+    }
+}
+
+impl<'a> FromNode<'a> for ConstructSignatureDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ConstructSignature)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawConstructorDeclaration {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub typeParameters: *const RawNodeList,
+    pub parameters: *const RawNodeList,
+    pub r_type: *const RawNode,
+    pub fullSignature: *const RawNode,
+    pub asteriskToken: *const RawNode,
+    pub body: *const RawNode,
+    pub _pad3: [u8; 8],
+    pub _pad4: [u8; 4],
+    pub _pad5: [u8; 4],
+    pub _pad6: [u8; 8],
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ConstructorDeclaration<'a> {
+    pub(crate) raw: *const RawConstructorDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ConstructorDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn type_parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeParameters })
+    }
+
+    pub fn parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).parameters })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn full_signature(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).fullSignature })
+    }
+
+    pub fn asterisk_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).asteriskToken })
+    }
+
+    pub fn body(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).body })
+    }
+}
+
+impl<'a> FromNode<'a> for ConstructorDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::Constructor)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawGetAccessorDeclaration {
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub name: *const RawNode,
+    pub postfixToken: *const RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub typeParameters: *const RawNodeList,
+    pub parameters: *const RawNodeList,
+    pub r_type: *const RawNode,
+    pub fullSignature: *const RawNode,
+    pub asteriskToken: *const RawNode,
+    pub body: *const RawNode,
+    pub _pad3: [u8; 8],
+    pub _pad4: [u8; 8],
+    pub _pad5: [u8; 4],
+    pub _pad6: [u8; 4],
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct GetAccessorDeclaration<'a> {
+    pub(crate) raw: *const RawGetAccessorDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> GetAccessorDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn postfix_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).postfixToken })
+    }
+
+    pub fn type_parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeParameters })
+    }
+
+    pub fn parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).parameters })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn full_signature(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).fullSignature })
+    }
+
+    pub fn asterisk_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).asteriskToken })
+    }
+
+    pub fn body(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).body })
+    }
+}
+
+impl<'a> FromNode<'a> for GetAccessorDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::GetAccessor)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(128).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawSetAccessorDeclaration {
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub name: *const RawNode,
+    pub postfixToken: *const RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub typeParameters: *const RawNodeList,
+    pub parameters: *const RawNodeList,
+    pub r_type: *const RawNode,
+    pub fullSignature: *const RawNode,
+    pub asteriskToken: *const RawNode,
+    pub body: *const RawNode,
+    pub _pad3: [u8; 8],
+    pub _pad4: [u8; 8],
+    pub _pad5: [u8; 4],
+    pub _pad6: [u8; 4],
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct SetAccessorDeclaration<'a> {
+    pub(crate) raw: *const RawSetAccessorDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> SetAccessorDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn postfix_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).postfixToken })
+    }
+
+    pub fn type_parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeParameters })
+    }
+
+    pub fn parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).parameters })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn full_signature(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).fullSignature })
+    }
+
+    pub fn asterisk_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).asteriskToken })
+    }
+
+    pub fn body(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).body })
+    }
+}
+
+impl<'a> FromNode<'a> for SetAccessorDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::SetAccessor)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(128).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawIndexSignatureDeclaration {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub typeParameters: *const RawNodeList,
+    pub parameters: *const RawNodeList,
+    pub r_type: *const RawNode,
+    pub fullSignature: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IndexSignatureDeclaration<'a> {
+    pub(crate) raw: *const RawIndexSignatureDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> IndexSignatureDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn type_parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeParameters })
+    }
+
+    pub fn parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).parameters })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn full_signature(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).fullSignature })
+    }
+}
+
+impl<'a> FromNode<'a> for IndexSignatureDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::IndexSignature)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawMethodSignatureDeclaration {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub name: *const RawNode,
+    pub postfixToken: *const RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub typeParameters: *const RawNodeList,
+    pub parameters: *const RawNodeList,
+    pub r_type: *const RawNode,
+    pub fullSignature: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct MethodSignatureDeclaration<'a> {
+    pub(crate) raw: *const RawMethodSignatureDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> MethodSignatureDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn postfix_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).postfixToken })
+    }
+
+    pub fn type_parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeParameters })
+    }
+
+    pub fn parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).parameters })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn full_signature(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).fullSignature })
+    }
+}
+
+impl<'a> FromNode<'a> for MethodSignatureDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::MethodSignature)
     }
 
     #[inline(always)]
@@ -6085,13 +4202,18 @@ pub struct RawMethodDeclaration {
     pub modifiers: *const RawModifierList,
     pub name: *const RawNode,
     pub postfixToken: *const RawNode,
-    pub _pad0: [u8; 16],
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
     pub typeParameters: *const RawNodeList,
     pub parameters: *const RawNodeList,
     pub r_type: *const RawNode,
     pub fullSignature: *const RawNode,
     pub asteriskToken: *const RawNode,
     pub body: *const RawNode,
+    pub _pad3: [u8; 8],
+    pub _pad4: [u8; 8],
+    pub _pad5: [u8; 4],
 }
 
 #[repr(transparent)]
@@ -6104,7 +4226,7 @@ pub struct MethodDeclaration<'a> {
 impl<'a> MethodDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -6165,30 +4287,27 @@ impl<'a> FromNode<'a> for MethodDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawMethodSignatureDeclaration {
+pub struct RawPropertySignatureDeclaration {
     pub node: RawNode,
     pub symbol: *const RawSymbol,
     pub modifiers: *const RawModifierList,
     pub name: *const RawNode,
     pub postfixToken: *const RawNode,
-    pub _pad0: [u8; 16],
-    pub typeParameters: *const RawNodeList,
-    pub parameters: *const RawNodeList,
     pub r_type: *const RawNode,
-    pub fullSignature: *const RawNode,
+    pub initializer: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct MethodSignatureDeclaration<'a> {
-    pub(crate) raw: *const RawMethodSignatureDeclaration,
+pub struct PropertySignatureDeclaration<'a> {
+    pub(crate) raw: *const RawPropertySignatureDeclaration,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> MethodSignatureDeclaration<'a> {
+impl<'a> PropertySignatureDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -6207,27 +4326,19 @@ impl<'a> MethodSignatureDeclaration<'a> {
         node_from_raw(unsafe { (*self.raw).postfixToken })
     }
 
-    pub fn type_parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeParameters })
-    }
-
-    pub fn parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).parameters })
-    }
-
     pub fn r_type(self) -> Option<Node<'a>> {
         node_from_raw(unsafe { (*self.raw).r_type })
     }
 
-    pub fn full_signature(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).fullSignature })
+    pub fn initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).initializer })
     }
 }
 
-impl<'a> FromNode<'a> for MethodSignatureDeclaration<'a> {
+impl<'a> FromNode<'a> for PropertySignatureDeclaration<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::MethodSignature)
+        matches!(kind, Kind::PropertySignature)
     }
 
     #[inline(always)]
@@ -6241,38 +4352,60 @@ impl<'a> FromNode<'a> for MethodSignatureDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawTemplateLiteralTypeSpan {
+pub struct RawPropertyDeclaration {
     pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub name: *const RawNode,
+    pub postfixToken: *const RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
     pub r_type: *const RawNode,
-    pub literal: *const RawNode,
+    pub initializer: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct TemplateLiteralTypeSpan<'a> {
-    pub(crate) raw: *const RawTemplateLiteralTypeSpan,
+pub struct PropertyDeclaration<'a> {
+    pub(crate) raw: *const RawPropertyDeclaration,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> TemplateLiteralTypeSpan<'a> {
+impl<'a> PropertyDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn postfix_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).postfixToken })
     }
 
     pub fn r_type(self) -> Option<Node<'a>> {
         node_from_raw(unsafe { (*self.raw).r_type })
     }
 
-    pub fn literal(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).literal })
+    pub fn initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).initializer })
     }
 }
 
-impl<'a> FromNode<'a> for TemplateLiteralTypeSpan<'a> {
+impl<'a> FromNode<'a> for PropertyDeclaration<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TemplateLiteralTypeSpan)
+        matches!(kind, Kind::PropertyDeclaration)
     }
 
     #[inline(always)]
@@ -6286,44 +4419,33 @@ impl<'a> FromNode<'a> for TemplateLiteralTypeSpan<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawJsxElement {
+pub struct RawSemicolonClassElement {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub openingElement: *const RawNode,
-    pub children: *const RawNodeList,
-    pub closingElement: *const RawNode,
+    pub symbol: *const RawSymbol,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct JsxElement<'a> {
-    pub(crate) raw: *const RawJsxElement,
+pub struct SemicolonClassElement<'a> {
+    pub(crate) raw: *const RawSemicolonClassElement,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> JsxElement<'a> {
+impl<'a> SemicolonClassElement<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn opening_element(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).openingElement })
-    }
-
-    pub fn children(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).children })
-    }
-
-    pub fn closing_element(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).closingElement })
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 }
 
-impl<'a> FromNode<'a> for JsxElement<'a> {
+impl<'a> FromNode<'a> for SemicolonClassElement<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxElement)
+        matches!(kind, Kind::SemicolonClassElement)
     }
 
     #[inline(always)]
@@ -6337,44 +4459,83 @@ impl<'a> FromNode<'a> for JsxElement<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawJsxFragment {
+pub struct RawClassStaticBlockDeclaration {
     pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
     pub _pad0: [u8; 8],
-    pub openingFragment: *const RawNode,
-    pub children: *const RawNodeList,
-    pub closingFragment: *const RawNode,
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 4],
+    pub _pad3: [u8; 4],
+    pub body: *const RawNode,
+    pub _pad4: [u8; 8],
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct JsxFragment<'a> {
-    pub(crate) raw: *const RawJsxFragment,
+pub struct ClassStaticBlockDeclaration<'a> {
+    pub(crate) raw: *const RawClassStaticBlockDeclaration,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> JsxFragment<'a> {
+impl<'a> ClassStaticBlockDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn opening_fragment(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).openingFragment })
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 
-    pub fn children(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).children })
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
     }
 
-    pub fn closing_fragment(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).closingFragment })
+    pub fn body(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).body })
     }
 }
 
-impl<'a> FromNode<'a> for JsxFragment<'a> {
+impl<'a> FromNode<'a> for ClassStaticBlockDeclaration<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JsxFragment)
+        matches!(kind, Kind::ClassStaticBlockDeclaration)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawOmittedExpression {
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct OmittedExpression<'a> {
+    pub(crate) raw: *const RawOmittedExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> OmittedExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+}
+
+impl<'a> FromNode<'a> for OmittedExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::OmittedExpression)
     }
 
     #[inline(always)]
@@ -6390,6 +4551,7 @@ impl<'a> FromNode<'a> for JsxFragment<'a> {
 #[derive(Copy, Clone)]
 pub struct RawKeywordExpression {
     pub node: RawNode,
+    pub _pad0: [u8; 8],
 }
 
 #[repr(transparent)]
@@ -6402,7 +4564,7 @@ pub struct KeywordExpression<'a> {
 impl<'a> KeywordExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 }
 
@@ -6411,7 +4573,12 @@ impl<'a> FromNode<'a> for KeywordExpression<'a> {
     fn matches(kind: Kind) -> bool {
         matches!(
             kind,
-            Kind::ThisKeyword | Kind::SuperKeyword | Kind::ImportKeyword
+            Kind::NullKeyword
+                | Kind::TrueKeyword
+                | Kind::FalseKeyword
+                | Kind::ThisKeyword
+                | Kind::SuperKeyword
+                | Kind::ImportKeyword
         )
     }
 
@@ -6426,39 +4593,215 @@ impl<'a> FromNode<'a> for KeywordExpression<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawCatchClause {
+pub struct RawStringLiteral {
+    pub text: GoString,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
     pub node: RawNode,
-    pub _pad0: [u8; 24],
-    pub variableDeclaration: *const RawNode,
-    pub block: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct CatchClause<'a> {
-    pub(crate) raw: *const RawCatchClause,
+pub struct StringLiteral<'a> {
+    pub(crate) raw: *const RawStringLiteral,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> CatchClause<'a> {
+impl<'a> StringLiteral<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn variable_declaration(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).variableDeclaration })
-    }
-
-    pub fn block(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).block })
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
     }
 }
 
-impl<'a> FromNode<'a> for CatchClause<'a> {
+impl<'a> FromNode<'a> for StringLiteral<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::CatchClause)
+        matches!(kind, Kind::StringLiteral)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(24).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNumericLiteral {
+    pub text: GoString,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NumericLiteral<'a> {
+    pub(crate) raw: *const RawNumericLiteral,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NumericLiteral<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
+    }
+}
+
+impl<'a> FromNode<'a> for NumericLiteral<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NumericLiteral)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(24).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawBigIntLiteral {
+    pub text: GoString,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct BigIntLiteral<'a> {
+    pub(crate) raw: *const RawBigIntLiteral,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> BigIntLiteral<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
+    }
+}
+
+impl<'a> FromNode<'a> for BigIntLiteral<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::BigIntLiteral)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(24).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawRegularExpressionLiteral {
+    pub text: GoString,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct RegularExpressionLiteral<'a> {
+    pub(crate) raw: *const RawRegularExpressionLiteral,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> RegularExpressionLiteral<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
+    }
+}
+
+impl<'a> FromNode<'a> for RegularExpressionLiteral<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::RegularExpressionLiteral)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(24).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNoSubstitutionTemplateLiteral {
+    pub node: RawNode,
+    pub text: GoString,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub rawText: GoString,
+    pub _pad2: [u8; 4],
+    pub _pad3: [u8; 4],
+    pub symbol: *const RawSymbol,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NoSubstitutionTemplateLiteral<'a> {
+    pub(crate) raw: *const RawNoSubstitutionTemplateLiteral,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NoSubstitutionTemplateLiteral<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
+    }
+
+    pub fn raw_text(self) -> &'a str {
+        unsafe { (*self.raw).rawText.as_str() }
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+}
+
+impl<'a> FromNode<'a> for NoSubstitutionTemplateLiteral<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NoSubstitutionTemplateLiteral)
     }
 
     #[inline(always)]
@@ -6472,111 +4815,29 @@ impl<'a> FromNode<'a> for CatchClause<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawDeleteExpression {
+pub struct RawBinaryExpression {
     pub node: RawNode,
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct DeleteExpression<'a> {
-    pub(crate) raw: *const RawDeleteExpression,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> DeleteExpression<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for DeleteExpression<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::DeleteExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawLabeledStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub label: *const RawNode,
-    pub statement: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct LabeledStatement<'a> {
-    pub(crate) raw: *const RawLabeledStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> LabeledStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn label(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).label })
-    }
-
-    pub fn statement(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).statement })
-    }
-}
-
-impl<'a> FromNode<'a> for LabeledStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::LabeledStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawNamespaceExportDeclaration {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
     pub symbol: *const RawSymbol,
     pub modifiers: *const RawModifierList,
-    pub name: *const RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub left: *const RawNode,
+    pub r_type: *const RawNode,
+    pub operatorToken: *const RawNode,
+    pub right: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct NamespaceExportDeclaration<'a> {
-    pub(crate) raw: *const RawNamespaceExportDeclaration,
+pub struct BinaryExpression<'a> {
+    pub(crate) raw: *const RawBinaryExpression,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> NamespaceExportDeclaration<'a> {
+impl<'a> BinaryExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -6587,15 +4848,27 @@ impl<'a> NamespaceExportDeclaration<'a> {
         modifier_list_from_raw(unsafe { (*self.raw).modifiers })
     }
 
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
+    pub fn left(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).left })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn operator_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).operatorToken })
+    }
+
+    pub fn right(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).right })
     }
 }
 
-impl<'a> FromNode<'a> for NamespaceExportDeclaration<'a> {
+impl<'a> FromNode<'a> for BinaryExpression<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NamespaceExportDeclaration)
+        matches!(kind, Kind::BinaryExpression)
     }
 
     #[inline(always)]
@@ -6609,34 +4882,39 @@ impl<'a> FromNode<'a> for NamespaceExportDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawNamedImports {
+pub struct RawPrefixUnaryExpression {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub elements: *const RawNodeList,
+    pub operator: Kind,
+    pub _pad0: [u8; 6],
+    pub operand: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct NamedImports<'a> {
-    pub(crate) raw: *const RawNamedImports,
+pub struct PrefixUnaryExpression<'a> {
+    pub(crate) raw: *const RawPrefixUnaryExpression,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> NamedImports<'a> {
+impl<'a> PrefixUnaryExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn elements(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).elements })
+    pub fn operator(self) -> Kind {
+        unsafe { (*self.raw).operator }
+    }
+
+    pub fn operand(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).operand })
     }
 }
 
-impl<'a> FromNode<'a> for NamedImports<'a> {
+impl<'a> FromNode<'a> for PrefixUnaryExpression<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NamedImports)
+        matches!(kind, Kind::PrefixUnaryExpression)
     }
 
     #[inline(always)]
@@ -6650,34 +4928,38 @@ impl<'a> FromNode<'a> for NamedImports<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawNamedExports {
+pub struct RawPostfixUnaryExpression {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub elements: *const RawNodeList,
+    pub operand: *const RawNode,
+    pub operator: Kind,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct NamedExports<'a> {
-    pub(crate) raw: *const RawNamedExports,
+pub struct PostfixUnaryExpression<'a> {
+    pub(crate) raw: *const RawPostfixUnaryExpression,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> NamedExports<'a> {
+impl<'a> PostfixUnaryExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn elements(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).elements })
+    pub fn operand(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).operand })
+    }
+
+    pub fn operator(self) -> Kind {
+        unsafe { (*self.raw).operator }
     }
 }
 
-impl<'a> FromNode<'a> for NamedExports<'a> {
+impl<'a> FromNode<'a> for PostfixUnaryExpression<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NamedExports)
+        matches!(kind, Kind::PostfixUnaryExpression)
     }
 
     #[inline(always)]
@@ -6691,34 +4973,38 @@ impl<'a> FromNode<'a> for NamedExports<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawBreakStatement {
+pub struct RawYieldExpression {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub label: *const RawNode,
+    pub asteriskToken: *const RawNode,
+    pub expression: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct BreakStatement<'a> {
-    pub(crate) raw: *const RawBreakStatement,
+pub struct YieldExpression<'a> {
+    pub(crate) raw: *const RawYieldExpression,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> BreakStatement<'a> {
+impl<'a> YieldExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn label(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).label })
+    pub fn asterisk_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).asteriskToken })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
     }
 }
 
-impl<'a> FromNode<'a> for BreakStatement<'a> {
+impl<'a> FromNode<'a> for YieldExpression<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::BreakStatement)
+        matches!(kind, Kind::YieldExpression)
     }
 
     #[inline(always)]
@@ -6732,216 +5018,129 @@ impl<'a> FromNode<'a> for BreakStatement<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawContinueStatement {
+pub struct RawArrowFunction {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub label: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct ContinueStatement<'a> {
-    pub(crate) raw: *const RawContinueStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> ContinueStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn label(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).label })
-    }
-}
-
-impl<'a> FromNode<'a> for ContinueStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ContinueStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawCaseBlock {
-    pub node: RawNode,
-    pub _pad0: [u8; 24],
-    pub clauses: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct CaseBlock<'a> {
-    pub(crate) raw: *const RawCaseBlock,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> CaseBlock<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn clauses(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).clauses })
-    }
-}
-
-impl<'a> FromNode<'a> for CaseBlock<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::CaseBlock)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawTryStatement {
-    pub node: RawNode,
-    pub _pad0: [u8; 16],
-    pub tryBlock: *const RawNode,
-    pub catchClause: *const RawNode,
-    pub finallyBlock: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TryStatement<'a> {
-    pub(crate) raw: *const RawTryStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> TryStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn try_block(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).tryBlock })
-    }
-
-    pub fn catch_clause(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).catchClause })
-    }
-
-    pub fn finally_block(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).finallyBlock })
-    }
-}
-
-impl<'a> FromNode<'a> for TryStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TryStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawBindingPattern {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub elements: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct BindingPattern<'a> {
-    pub(crate) raw: *const RawBindingPattern,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> BindingPattern<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn elements(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).elements })
-    }
-}
-
-impl<'a> FromNode<'a> for BindingPattern<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ObjectBindingPattern | Kind::ArrayBindingPattern)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawFunctionDeclaration {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
     pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
     pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 16],
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
     pub typeParameters: *const RawNodeList,
     pub parameters: *const RawNodeList,
     pub r_type: *const RawNode,
     pub fullSignature: *const RawNode,
     pub asteriskToken: *const RawNode,
     pub body: *const RawNode,
-    pub _pad2: [u8; 16],
-    pub name: *const RawNode,
+    pub _pad3: [u8; 8],
+    pub _pad4: [u8; 8],
+    pub _pad5: [u8; 4],
+    pub _pad6: [u8; 4],
+    pub equalsGreaterThanToken: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct FunctionDeclaration<'a> {
-    pub(crate) raw: *const RawFunctionDeclaration,
+pub struct ArrowFunction<'a> {
+    pub(crate) raw: *const RawArrowFunction,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> FunctionDeclaration<'a> {
+impl<'a> ArrowFunction<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
         symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn type_parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeParameters })
+    }
+
+    pub fn parameters(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).parameters })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn full_signature(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).fullSignature })
+    }
+
+    pub fn asterisk_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).asteriskToken })
+    }
+
+    pub fn body(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).body })
+    }
+
+    pub fn equals_greater_than_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).equalsGreaterThanToken })
+    }
+}
+
+impl<'a> FromNode<'a> for ArrowFunction<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ArrowFunction)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawFunctionExpression {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub typeParameters: *const RawNodeList,
+    pub parameters: *const RawNodeList,
+    pub r_type: *const RawNode,
+    pub fullSignature: *const RawNode,
+    pub asteriskToken: *const RawNode,
+    pub body: *const RawNode,
+    pub _pad3: [u8; 8],
+    pub _pad4: [u8; 8],
+    pub _pad5: [u8; 4],
+    pub _pad6: [u8; 4],
+    pub name: *const RawNode,
+    pub _pad7: [u8; 8],
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct FunctionExpression<'a> {
+    pub(crate) raw: *const RawFunctionExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> FunctionExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 
     pub fn modifiers(self) -> Option<ModifierList<'a>> {
@@ -6977,10 +5176,1022 @@ impl<'a> FunctionDeclaration<'a> {
     }
 }
 
-impl<'a> FromNode<'a> for FunctionDeclaration<'a> {
+impl<'a> FromNode<'a> for FunctionExpression<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::FunctionDeclaration)
+        matches!(kind, Kind::FunctionExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawAsExpression {
+    pub node: RawNode,
+    pub expression: *const RawNode,
+    pub r_type: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct AsExpression<'a> {
+    pub(crate) raw: *const RawAsExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> AsExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+}
+
+impl<'a> FromNode<'a> for AsExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::AsExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawSatisfiesExpression {
+    pub node: RawNode,
+    pub expression: *const RawNode,
+    pub r_type: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct SatisfiesExpression<'a> {
+    pub(crate) raw: *const RawSatisfiesExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> SatisfiesExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+}
+
+impl<'a> FromNode<'a> for SatisfiesExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::SatisfiesExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawConditionalExpression {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub condition: *const RawNode,
+    pub questionToken: *const RawNode,
+    pub whenTrue: *const RawNode,
+    pub colonToken: *const RawNode,
+    pub whenFalse: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ConditionalExpression<'a> {
+    pub(crate) raw: *const RawConditionalExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ConditionalExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn condition(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).condition })
+    }
+
+    pub fn question_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).questionToken })
+    }
+
+    pub fn when_true(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).whenTrue })
+    }
+
+    pub fn colon_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).colonToken })
+    }
+
+    pub fn when_false(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).whenFalse })
+    }
+}
+
+impl<'a> FromNode<'a> for ConditionalExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ConditionalExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawPropertyAccessExpression {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub expression: *const RawNode,
+    pub questionDotToken: *const RawNode,
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct PropertyAccessExpression<'a> {
+    pub(crate) raw: *const RawPropertyAccessExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> PropertyAccessExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn question_dot_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).questionDotToken })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+}
+
+impl<'a> FromNode<'a> for PropertyAccessExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::PropertyAccessExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawElementAccessExpression {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub _pad2: [u8; 4],
+    pub expression: *const RawNode,
+    pub questionDotToken: *const RawNode,
+    pub argumentExpression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ElementAccessExpression<'a> {
+    pub(crate) raw: *const RawElementAccessExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ElementAccessExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn question_dot_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).questionDotToken })
+    }
+
+    pub fn argument_expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).argumentExpression })
+    }
+}
+
+impl<'a> FromNode<'a> for ElementAccessExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ElementAccessExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawCallExpression {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub expression: *const RawNode,
+    pub questionDotToken: *const RawNode,
+    pub typeArguments: *const RawNodeList,
+    pub arguments: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct CallExpression<'a> {
+    pub(crate) raw: *const RawCallExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> CallExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn question_dot_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).questionDotToken })
+    }
+
+    pub fn type_arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeArguments })
+    }
+
+    pub fn arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).arguments })
+    }
+}
+
+impl<'a> FromNode<'a> for CallExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::CallExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNewExpression {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub expression: *const RawNode,
+    pub typeArguments: *const RawNodeList,
+    pub arguments: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NewExpression<'a> {
+    pub(crate) raw: *const RawNewExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NewExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn type_arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeArguments })
+    }
+
+    pub fn arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).arguments })
+    }
+}
+
+impl<'a> FromNode<'a> for NewExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NewExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawMetaProperty {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub _pad1: [u8; 4],
+    pub keywordToken: Kind,
+    pub _pad2: [u8; 2],
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct MetaProperty<'a> {
+    pub(crate) raw: *const RawMetaProperty,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> MetaProperty<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn keyword_token(self) -> Kind {
+        unsafe { (*self.raw).keywordToken }
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+}
+
+impl<'a> FromNode<'a> for MetaProperty<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::MetaProperty)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawNonNullExpression {
+    pub node: RawNode,
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NonNullExpression<'a> {
+    pub(crate) raw: *const RawNonNullExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> NonNullExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for NonNullExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::NonNullExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawSpreadElement {
+    pub node: RawNode,
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct SpreadElement<'a> {
+    pub(crate) raw: *const RawSpreadElement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> SpreadElement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for SpreadElement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::SpreadElement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTemplateExpression {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub head: *const RawNode,
+    pub templateSpans: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TemplateExpression<'a> {
+    pub(crate) raw: *const RawTemplateExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TemplateExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn head(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).head })
+    }
+
+    pub fn template_spans(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).templateSpans })
+    }
+}
+
+impl<'a> FromNode<'a> for TemplateExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TemplateExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTemplateSpan {
+    pub node: RawNode,
+    pub expression: *const RawNode,
+    pub literal: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TemplateSpan<'a> {
+    pub(crate) raw: *const RawTemplateSpan,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TemplateSpan<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn literal(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).literal })
+    }
+}
+
+impl<'a> FromNode<'a> for TemplateSpan<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TemplateSpan)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTaggedTemplateExpression {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub tag: *const RawNode,
+    pub questionDotToken: *const RawNode,
+    pub typeArguments: *const RawNodeList,
+    pub template: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TaggedTemplateExpression<'a> {
+    pub(crate) raw: *const RawTaggedTemplateExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TaggedTemplateExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn tag(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).tag })
+    }
+
+    pub fn question_dot_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).questionDotToken })
+    }
+
+    pub fn type_arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeArguments })
+    }
+
+    pub fn template(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).template })
+    }
+}
+
+impl<'a> FromNode<'a> for TaggedTemplateExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TaggedTemplateExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawParenthesizedExpression {
+    pub node: RawNode,
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ParenthesizedExpression<'a> {
+    pub(crate) raw: *const RawParenthesizedExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ParenthesizedExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for ParenthesizedExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ParenthesizedExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawArrayLiteralExpression {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub elements: *const RawNodeList,
+    pub multiLine: u8,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ArrayLiteralExpression<'a> {
+    pub(crate) raw: *const RawArrayLiteralExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ArrayLiteralExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn elements(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).elements })
+    }
+
+    pub fn multi_line(self) -> bool {
+        unsafe { (*self.raw).multiLine != 0 }
+    }
+}
+
+impl<'a> FromNode<'a> for ArrayLiteralExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ArrayLiteralExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawObjectLiteralExpression {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub properties: *const RawNodeList,
+    pub multiLine: u8,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ObjectLiteralExpression<'a> {
+    pub(crate) raw: *const RawObjectLiteralExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ObjectLiteralExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn properties(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).properties })
+    }
+
+    pub fn multi_line(self) -> bool {
+        unsafe { (*self.raw).multiLine != 0 }
+    }
+}
+
+impl<'a> FromNode<'a> for ObjectLiteralExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ObjectLiteralExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawSpreadAssignment {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct SpreadAssignment<'a> {
+    pub(crate) raw: *const RawSpreadAssignment,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> SpreadAssignment<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for SpreadAssignment<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::SpreadAssignment)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawPropertyAssignment {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub name: *const RawNode,
+    pub postfixToken: *const RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub r_type: *const RawNode,
+    pub initializer: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct PropertyAssignment<'a> {
+    pub(crate) raw: *const RawPropertyAssignment,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> PropertyAssignment<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn postfix_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).postfixToken })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).initializer })
+    }
+}
+
+impl<'a> FromNode<'a> for PropertyAssignment<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::PropertyAssignment)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawShorthandPropertyAssignment {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub name: *const RawNode,
+    pub postfixToken: *const RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub r_type: *const RawNode,
+    pub equalsToken: *const RawNode,
+    pub objectAssignmentInitializer: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ShorthandPropertyAssignment<'a> {
+    pub(crate) raw: *const RawShorthandPropertyAssignment,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ShorthandPropertyAssignment<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn postfix_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).postfixToken })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn equals_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).equalsToken })
+    }
+
+    pub fn object_assignment_initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).objectAssignmentInitializer })
+    }
+}
+
+impl<'a> FromNode<'a> for ShorthandPropertyAssignment<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ShorthandPropertyAssignment)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawDeleteExpression {
+    pub node: RawNode,
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct DeleteExpression<'a> {
+    pub(crate) raw: *const RawDeleteExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> DeleteExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for DeleteExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::DeleteExpression)
     }
 
     #[inline(always)]
@@ -7009,7 +6220,7 @@ pub struct TypeOfExpression<'a> {
 impl<'a> TypeOfExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn expression(self) -> Option<Node<'a>> {
@@ -7049,7 +6260,7 @@ pub struct VoidExpression<'a> {
 impl<'a> VoidExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn expression(self) -> Option<Node<'a>> {
@@ -7089,7 +6300,7 @@ pub struct AwaitExpression<'a> {
 impl<'a> AwaitExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn expression(self) -> Option<Node<'a>> {
@@ -7114,39 +6325,227 @@ impl<'a> FromNode<'a> for AwaitExpression<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawTemplateExpression {
+pub struct RawTypeAssertion {
+    pub node: RawNode,
+    pub r_type: *const RawNode,
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TypeAssertion<'a> {
+    pub(crate) raw: *const RawTypeAssertion,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TypeAssertion<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for TypeAssertion<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TypeAssertionExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawKeywordTypeNode {
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct KeywordTypeNode<'a> {
+    pub(crate) raw: *const RawKeywordTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> KeywordTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+}
+
+impl<'a> FromNode<'a> for KeywordTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(
+            kind,
+            Kind::AnyKeyword
+                | Kind::BigIntKeyword
+                | Kind::BooleanKeyword
+                | Kind::IntrinsicKeyword
+                | Kind::NeverKeyword
+                | Kind::NumberKeyword
+                | Kind::ObjectKeyword
+                | Kind::StringKeyword
+                | Kind::SymbolKeyword
+                | Kind::UndefinedKeyword
+                | Kind::UnknownKeyword
+                | Kind::VoidKeyword
+        )
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawUnionTypeNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 64],
+    pub types: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct UnionTypeNode<'a> {
+    pub(crate) raw: *const RawUnionTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> UnionTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn types(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).types })
+    }
+}
+
+impl<'a> FromNode<'a> for UnionTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::UnionType)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawIntersectionTypeNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 64],
+    pub types: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IntersectionTypeNode<'a> {
+    pub(crate) raw: *const RawIntersectionTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> IntersectionTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn types(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).types })
+    }
+}
+
+impl<'a> FromNode<'a> for IntersectionTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::IntersectionType)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawConditionalTypeNode {
     pub node: RawNode,
     pub _pad0: [u8; 8],
-    pub head: *const RawNode,
-    pub templateSpans: *const RawNodeList,
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub checkType: *const RawNode,
+    pub extendsType: *const RawNode,
+    pub trueType: *const RawNode,
+    pub falseType: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct TemplateExpression<'a> {
-    pub(crate) raw: *const RawTemplateExpression,
+pub struct ConditionalTypeNode<'a> {
+    pub(crate) raw: *const RawConditionalTypeNode,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> TemplateExpression<'a> {
+impl<'a> ConditionalTypeNode<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn head(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).head })
+    pub fn check_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).checkType })
     }
 
-    pub fn template_spans(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).templateSpans })
+    pub fn extends_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).extendsType })
+    }
+
+    pub fn true_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).trueType })
+    }
+
+    pub fn false_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).falseType })
     }
 }
 
-impl<'a> FromNode<'a> for TemplateExpression<'a> {
+impl<'a> FromNode<'a> for ConditionalTypeNode<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TemplateExpression)
+        matches!(kind, Kind::ConditionalType)
     }
 
     #[inline(always)]
@@ -7160,38 +6559,40 @@ impl<'a> FromNode<'a> for TemplateExpression<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawYieldExpression {
+pub struct RawTypeOperatorNode {
     pub node: RawNode,
-    pub asteriskToken: *const RawNode,
-    pub expression: *const RawNode,
+    pub _pad0: [u8; 8],
+    pub operator: Kind,
+    pub _pad1: [u8; 6],
+    pub r_type: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct YieldExpression<'a> {
-    pub(crate) raw: *const RawYieldExpression,
+pub struct TypeOperatorNode<'a> {
+    pub(crate) raw: *const RawTypeOperatorNode,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> YieldExpression<'a> {
+impl<'a> TypeOperatorNode<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn asterisk_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).asteriskToken })
+    pub fn operator(self) -> Kind {
+        unsafe { (*self.raw).operator }
     }
 
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
     }
 }
 
-impl<'a> FromNode<'a> for YieldExpression<'a> {
+impl<'a> FromNode<'a> for TypeOperatorNode<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::YieldExpression)
+        matches!(kind, Kind::TypeOperator)
     }
 
     #[inline(always)]
@@ -7205,118 +6606,34 @@ impl<'a> FromNode<'a> for YieldExpression<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawPartiallyEmittedExpression {
+pub struct RawInferTypeNode {
     pub node: RawNode,
-    pub expression: *const RawNode,
+    pub _pad0: [u8; 8],
+    pub typeParameter: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct PartiallyEmittedExpression<'a> {
-    pub(crate) raw: *const RawPartiallyEmittedExpression,
+pub struct InferTypeNode<'a> {
+    pub(crate) raw: *const RawInferTypeNode,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> PartiallyEmittedExpression<'a> {
+impl<'a> InferTypeNode<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
+    pub fn type_parameter(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).typeParameter })
     }
 }
 
-impl<'a> FromNode<'a> for PartiallyEmittedExpression<'a> {
+impl<'a> FromNode<'a> for InferTypeNode<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::PartiallyEmittedExpression)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawSpreadElement {
-    pub node: RawNode,
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct SpreadElement<'a> {
-    pub(crate) raw: *const RawSpreadElement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> SpreadElement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for SpreadElement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::SpreadElement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawSpreadAssignment {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub expression: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct SpreadAssignment<'a> {
-    pub(crate) raw: *const RawSpreadAssignment,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> SpreadAssignment<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).expression })
-    }
-}
-
-impl<'a> FromNode<'a> for SpreadAssignment<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::SpreadAssignment)
+        matches!(kind, Kind::InferType)
     }
 
     #[inline(always)]
@@ -7346,7 +6663,7 @@ pub struct ArrayTypeNode<'a> {
 impl<'a> ArrayTypeNode<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn element_type(self) -> Option<Node<'a>> {
@@ -7358,6 +6675,536 @@ impl<'a> FromNode<'a> for ArrayTypeNode<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
         matches!(kind, Kind::ArrayType)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawIndexedAccessTypeNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub objectType: *const RawNode,
+    pub indexType: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IndexedAccessTypeNode<'a> {
+    pub(crate) raw: *const RawIndexedAccessTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> IndexedAccessTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn object_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).objectType })
+    }
+
+    pub fn index_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).indexType })
+    }
+}
+
+impl<'a> FromNode<'a> for IndexedAccessTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::IndexedAccessType)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTypeReferenceNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub typeArguments: *const RawNodeList,
+    pub typeName: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TypeReferenceNode<'a> {
+    pub(crate) raw: *const RawTypeReferenceNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TypeReferenceNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn type_arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeArguments })
+    }
+
+    pub fn type_name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).typeName })
+    }
+}
+
+impl<'a> FromNode<'a> for TypeReferenceNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TypeReference)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawExpressionWithTypeArguments {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub expression: *const RawNode,
+    pub typeArguments: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ExpressionWithTypeArguments<'a> {
+    pub(crate) raw: *const RawExpressionWithTypeArguments,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ExpressionWithTypeArguments<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn type_arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeArguments })
+    }
+}
+
+impl<'a> FromNode<'a> for ExpressionWithTypeArguments<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ExpressionWithTypeArguments)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawLiteralTypeNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub literal: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct LiteralTypeNode<'a> {
+    pub(crate) raw: *const RawLiteralTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> LiteralTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn literal(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).literal })
+    }
+}
+
+impl<'a> FromNode<'a> for LiteralTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::LiteralType)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawThisTypeNode {
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ThisTypeNode<'a> {
+    pub(crate) raw: *const RawThisTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ThisTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+}
+
+impl<'a> FromNode<'a> for ThisTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ThisType)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTypePredicateNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub assertsModifier: *const RawNode,
+    pub parameterName: *const RawNode,
+    pub r_type: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TypePredicateNode<'a> {
+    pub(crate) raw: *const RawTypePredicateNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TypePredicateNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn asserts_modifier(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).assertsModifier })
+    }
+
+    pub fn parameter_name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).parameterName })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+}
+
+impl<'a> FromNode<'a> for TypePredicateNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TypePredicate)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawImportAttribute {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub name: *const RawNode,
+    pub value: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ImportAttribute<'a> {
+    pub(crate) raw: *const RawImportAttribute,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ImportAttribute<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn value(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).value })
+    }
+}
+
+impl<'a> FromNode<'a> for ImportAttribute<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ImportAttribute)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawImportAttributes {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub token: Kind,
+    pub _pad1: [u8; 2],
+    pub attributes: *const RawNodeList,
+    pub multiLine: u8,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ImportAttributes<'a> {
+    pub(crate) raw: *const RawImportAttributes,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ImportAttributes<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn token(self) -> Kind {
+        unsafe { (*self.raw).token }
+    }
+
+    pub fn attributes(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).attributes })
+    }
+
+    pub fn multi_line(self) -> bool {
+        unsafe { (*self.raw).multiLine != 0 }
+    }
+}
+
+impl<'a> FromNode<'a> for ImportAttributes<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ImportAttributes)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTypeQueryNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub typeArguments: *const RawNodeList,
+    pub exprName: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TypeQueryNode<'a> {
+    pub(crate) raw: *const RawTypeQueryNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TypeQueryNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn type_arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeArguments })
+    }
+
+    pub fn expr_name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).exprName })
+    }
+}
+
+impl<'a> FromNode<'a> for TypeQueryNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TypeQuery)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawMappedTypeNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub symbol: *const RawSymbol,
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub readonlyToken: *const RawNode,
+    pub typeParameter: *const RawNode,
+    pub nameType: *const RawNode,
+    pub questionToken: *const RawNode,
+    pub r_type: *const RawNode,
+    pub members: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct MappedTypeNode<'a> {
+    pub(crate) raw: *const RawMappedTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> MappedTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn readonly_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).readonlyToken })
+    }
+
+    pub fn type_parameter(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).typeParameter })
+    }
+
+    pub fn name_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).nameType })
+    }
+
+    pub fn question_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).questionToken })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn members(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).members })
+    }
+}
+
+impl<'a> FromNode<'a> for MappedTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::MappedType)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTypeLiteralNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub symbol: *const RawSymbol,
+    pub members: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TypeLiteralNode<'a> {
+    pub(crate) raw: *const RawTypeLiteralNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TypeLiteralNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn members(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).members })
+    }
+}
+
+impl<'a> FromNode<'a> for TypeLiteralNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TypeLiteral)
     }
 
     #[inline(always)]
@@ -7387,7 +7234,7 @@ pub struct TupleTypeNode<'a> {
 impl<'a> TupleTypeNode<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn elements(self) -> Option<NodeList<'a>> {
@@ -7399,129 +7246,6 @@ impl<'a> FromNode<'a> for TupleTypeNode<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
         matches!(kind, Kind::TupleType)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawUnionTypeNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub types: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct UnionTypeNode<'a> {
-    pub(crate) raw: *const RawUnionTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> UnionTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn types(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).types })
-    }
-}
-
-impl<'a> FromNode<'a> for UnionTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::UnionType)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawIntersectionTypeNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub types: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct IntersectionTypeNode<'a> {
-    pub(crate) raw: *const RawIntersectionTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> IntersectionTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn types(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).types })
-    }
-}
-
-impl<'a> FromNode<'a> for IntersectionTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::IntersectionType)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawRestTypeNode {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub r_type: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct RestTypeNode<'a> {
-    pub(crate) raw: *const RawRestTypeNode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> RestTypeNode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-}
-
-impl<'a> FromNode<'a> for RestTypeNode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::RestType)
     }
 
     #[inline(always)]
@@ -7555,7 +7279,7 @@ pub struct NamedTupleMember<'a> {
 impl<'a> NamedTupleMember<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
@@ -7612,7 +7336,7 @@ pub struct OptionalTypeNode<'a> {
 impl<'a> OptionalTypeNode<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn r_type(self) -> Option<Node<'a>> {
@@ -7637,39 +7361,75 @@ impl<'a> FromNode<'a> for OptionalTypeNode<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawTemplateLiteralTypeNode {
+pub struct RawRestTypeNode {
     pub node: RawNode,
     pub _pad0: [u8; 8],
-    pub head: *const RawNode,
-    pub templateSpans: *const RawNodeList,
+    pub r_type: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct TemplateLiteralTypeNode<'a> {
-    pub(crate) raw: *const RawTemplateLiteralTypeNode,
+pub struct RestTypeNode<'a> {
+    pub(crate) raw: *const RawRestTypeNode,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> TemplateLiteralTypeNode<'a> {
+impl<'a> RestTypeNode<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn head(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).head })
-    }
-
-    pub fn template_spans(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).templateSpans })
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
     }
 }
 
-impl<'a> FromNode<'a> for TemplateLiteralTypeNode<'a> {
+impl<'a> FromNode<'a> for RestTypeNode<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TemplateLiteralType)
+        matches!(kind, Kind::RestType)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawParenthesizedTypeNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub r_type: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ParenthesizedTypeNode<'a> {
+    pub(crate) raw: *const RawParenthesizedTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ParenthesizedTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+}
+
+impl<'a> FromNode<'a> for ParenthesizedTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ParenthesizedType)
     }
 
     #[inline(always)]
@@ -7685,10 +7445,11 @@ impl<'a> FromNode<'a> for TemplateLiteralTypeNode<'a> {
 #[derive(Copy, Clone)]
 pub struct RawFunctionTypeNode {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
+    pub _pad0: [u8; 64],
     pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 16],
+    pub symbol: *const RawSymbol,
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
     pub typeParameters: *const RawNodeList,
     pub parameters: *const RawNodeList,
     pub r_type: *const RawNode,
@@ -7705,15 +7466,15 @@ pub struct FunctionTypeNode<'a> {
 impl<'a> FunctionTypeNode<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn modifiers(self) -> Option<ModifierList<'a>> {
         modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 
     pub fn type_parameters(self) -> Option<NodeList<'a>> {
@@ -7752,10 +7513,11 @@ impl<'a> FromNode<'a> for FunctionTypeNode<'a> {
 #[derive(Copy, Clone)]
 pub struct RawConstructorTypeNode {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
+    pub _pad0: [u8; 64],
     pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 16],
+    pub symbol: *const RawSymbol,
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
     pub typeParameters: *const RawNodeList,
     pub parameters: *const RawNodeList,
     pub r_type: *const RawNode,
@@ -7772,15 +7534,15 @@ pub struct ConstructorTypeNode<'a> {
 impl<'a> ConstructorTypeNode<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn modifiers(self) -> Option<ModifierList<'a>> {
         modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 
     pub fn type_parameters(self) -> Option<NodeList<'a>> {
@@ -7817,39 +7579,467 @@ impl<'a> FromNode<'a> for ConstructorTypeNode<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawTypeQueryNode {
+pub struct RawTemplateHead {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub exprName: *const RawNode,
-    pub typeArguments: *const RawNodeList,
+    pub text: GoString,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub rawText: GoString,
+    pub _pad2: [u8; 4],
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct TypeQueryNode<'a> {
-    pub(crate) raw: *const RawTypeQueryNode,
+pub struct TemplateHead<'a> {
+    pub(crate) raw: *const RawTemplateHead,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> TypeQueryNode<'a> {
+impl<'a> TemplateHead<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn expr_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).exprName })
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
+    }
+
+    pub fn raw_text(self) -> &'a str {
+        unsafe { (*self.raw).rawText.as_str() }
+    }
+}
+
+impl<'a> FromNode<'a> for TemplateHead<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TemplateHead)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTemplateMiddle {
+    pub node: RawNode,
+    pub text: GoString,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub rawText: GoString,
+    pub _pad2: [u8; 4],
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TemplateMiddle<'a> {
+    pub(crate) raw: *const RawTemplateMiddle,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TemplateMiddle<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
+    }
+
+    pub fn raw_text(self) -> &'a str {
+        unsafe { (*self.raw).rawText.as_str() }
+    }
+}
+
+impl<'a> FromNode<'a> for TemplateMiddle<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TemplateMiddle)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTemplateTail {
+    pub node: RawNode,
+    pub text: GoString,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub rawText: GoString,
+    pub _pad2: [u8; 4],
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TemplateTail<'a> {
+    pub(crate) raw: *const RawTemplateTail,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TemplateTail<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
+    }
+
+    pub fn raw_text(self) -> &'a str {
+        unsafe { (*self.raw).rawText.as_str() }
+    }
+}
+
+impl<'a> FromNode<'a> for TemplateTail<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TemplateTail)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTemplateLiteralTypeNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub head: *const RawNode,
+    pub templateSpans: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TemplateLiteralTypeNode<'a> {
+    pub(crate) raw: *const RawTemplateLiteralTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TemplateLiteralTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn head(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).head })
+    }
+
+    pub fn template_spans(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).templateSpans })
+    }
+}
+
+impl<'a> FromNode<'a> for TemplateLiteralTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TemplateLiteralType)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTemplateLiteralTypeSpan {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub r_type: *const RawNode,
+    pub literal: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TemplateLiteralTypeSpan<'a> {
+    pub(crate) raw: *const RawTemplateLiteralTypeSpan,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TemplateLiteralTypeSpan<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn r_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).r_type })
+    }
+
+    pub fn literal(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).literal })
+    }
+}
+
+impl<'a> FromNode<'a> for TemplateLiteralTypeSpan<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TemplateLiteralTypeSpan)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawPartiallyEmittedExpression {
+    pub node: RawNode,
+    pub expression: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct PartiallyEmittedExpression<'a> {
+    pub(crate) raw: *const RawPartiallyEmittedExpression,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> PartiallyEmittedExpression<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+}
+
+impl<'a> FromNode<'a> for PartiallyEmittedExpression<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::PartiallyEmittedExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJsxElement {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub openingElement: *const RawNode,
+    pub children: *const RawNodeList,
+    pub closingElement: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JsxElement<'a> {
+    pub(crate) raw: *const RawJsxElement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JsxElement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn opening_element(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).openingElement })
+    }
+
+    pub fn children(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).children })
+    }
+
+    pub fn closing_element(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).closingElement })
+    }
+}
+
+impl<'a> FromNode<'a> for JsxElement<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JsxElement)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJsxAttributes {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub properties: *const RawNodeList,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JsxAttributes<'a> {
+    pub(crate) raw: *const RawJsxAttributes,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JsxAttributes<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn properties(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).properties })
+    }
+}
+
+impl<'a> FromNode<'a> for JsxAttributes<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JsxAttributes)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJsxNamespacedName {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub namespace: *const RawNode,
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JsxNamespacedName<'a> {
+    pub(crate) raw: *const RawJsxNamespacedName,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JsxNamespacedName<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn namespace(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).namespace })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+}
+
+impl<'a> FromNode<'a> for JsxNamespacedName<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JsxNamespacedName)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJsxOpeningElement {
+    pub node: RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub tagName: *const RawNode,
+    pub typeArguments: *const RawNodeList,
+    pub attributes: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JsxOpeningElement<'a> {
+    pub(crate) raw: *const RawJsxOpeningElement,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JsxOpeningElement<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn tag_name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).tagName })
     }
 
     pub fn type_arguments(self) -> Option<NodeList<'a>> {
         node_list_from_raw(unsafe { (*self.raw).typeArguments })
     }
+
+    pub fn attributes(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).attributes })
+    }
 }
 
-impl<'a> FromNode<'a> for TypeQueryNode<'a> {
+impl<'a> FromNode<'a> for JsxOpeningElement<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TypeQuery)
+        matches!(kind, Kind::JsxOpeningElement)
     }
 
     #[inline(always)]
@@ -7863,39 +8053,45 @@ impl<'a> FromNode<'a> for TypeQueryNode<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawTypeLiteralNode {
+pub struct RawJsxSelfClosingElement {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
-    pub members: *const RawNodeList,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub tagName: *const RawNode,
+    pub typeArguments: *const RawNodeList,
+    pub attributes: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct TypeLiteralNode<'a> {
-    pub(crate) raw: *const RawTypeLiteralNode,
+pub struct JsxSelfClosingElement<'a> {
+    pub(crate) raw: *const RawJsxSelfClosingElement,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> TypeLiteralNode<'a> {
+impl<'a> JsxSelfClosingElement<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
+    pub fn tag_name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).tagName })
     }
 
-    pub fn members(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).members })
+    pub fn type_arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeArguments })
+    }
+
+    pub fn attributes(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).attributes })
     }
 }
 
-impl<'a> FromNode<'a> for TypeLiteralNode<'a> {
+impl<'a> FromNode<'a> for JsxSelfClosingElement<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::TypeLiteral)
+        matches!(kind, Kind::JsxSelfClosingElement)
     }
 
     #[inline(always)]
@@ -7909,39 +8105,45 @@ impl<'a> FromNode<'a> for TypeLiteralNode<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawIndexedAccessTypeNode {
+pub struct RawJsxFragment {
     pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub objectType: *const RawNode,
-    pub indexType: *const RawNode,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub openingFragment: *const RawNode,
+    pub children: *const RawNodeList,
+    pub closingFragment: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct IndexedAccessTypeNode<'a> {
-    pub(crate) raw: *const RawIndexedAccessTypeNode,
+pub struct JsxFragment<'a> {
+    pub(crate) raw: *const RawJsxFragment,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> IndexedAccessTypeNode<'a> {
+impl<'a> JsxFragment<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn object_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).objectType })
+    pub fn opening_fragment(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).openingFragment })
     }
 
-    pub fn index_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).indexType })
+    pub fn children(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).children })
+    }
+
+    pub fn closing_fragment(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).closingFragment })
     }
 }
 
-impl<'a> FromNode<'a> for IndexedAccessTypeNode<'a> {
+impl<'a> FromNode<'a> for JsxFragment<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::IndexedAccessType)
+        matches!(kind, Kind::JsxFragment)
     }
 
     #[inline(always)]
@@ -7955,79 +8157,115 @@ impl<'a> FromNode<'a> for IndexedAccessTypeNode<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawGetAccessorDeclaration {
+pub struct RawJsxOpeningFragment {
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JsxOpeningFragment<'a> {
+    pub(crate) raw: *const RawJsxOpeningFragment,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JsxOpeningFragment<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+}
+
+impl<'a> FromNode<'a> for JsxOpeningFragment<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JsxOpeningFragment)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJsxClosingFragment {
+    pub node: RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JsxClosingFragment<'a> {
+    pub(crate) raw: *const RawJsxClosingFragment,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JsxClosingFragment<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+}
+
+impl<'a> FromNode<'a> for JsxClosingFragment<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JsxClosingFragment)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJsxAttribute {
     pub node: RawNode,
     pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
     pub name: *const RawNode,
-    pub postfixToken: *const RawNode,
-    pub _pad0: [u8; 16],
-    pub typeParameters: *const RawNodeList,
-    pub parameters: *const RawNodeList,
-    pub r_type: *const RawNode,
-    pub fullSignature: *const RawNode,
-    pub asteriskToken: *const RawNode,
-    pub body: *const RawNode,
+    pub initializer: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct GetAccessorDeclaration<'a> {
-    pub(crate) raw: *const RawGetAccessorDeclaration,
+pub struct JsxAttribute<'a> {
+    pub(crate) raw: *const RawJsxAttribute,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> GetAccessorDeclaration<'a> {
+impl<'a> JsxAttribute<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
         symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
     }
 
     pub fn name(self) -> Option<Node<'a>> {
         node_from_raw(unsafe { (*self.raw).name })
     }
 
-    pub fn postfix_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).postfixToken })
-    }
-
-    pub fn type_parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeParameters })
-    }
-
-    pub fn parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).parameters })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn full_signature(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).fullSignature })
-    }
-
-    pub fn asterisk_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).asteriskToken })
-    }
-
-    pub fn body(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).body })
+    pub fn initializer(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).initializer })
     }
 }
 
-impl<'a> FromNode<'a> for GetAccessorDeclaration<'a> {
+impl<'a> FromNode<'a> for JsxAttribute<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::GetAccessor)
+        matches!(kind, Kind::JsxAttribute)
     }
 
     #[inline(always)]
@@ -8041,79 +8279,33 @@ impl<'a> FromNode<'a> for GetAccessorDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawSetAccessorDeclaration {
+pub struct RawJsxSpreadAttribute {
     pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub name: *const RawNode,
-    pub postfixToken: *const RawNode,
-    pub _pad0: [u8; 16],
-    pub typeParameters: *const RawNodeList,
-    pub parameters: *const RawNodeList,
-    pub r_type: *const RawNode,
-    pub fullSignature: *const RawNode,
-    pub asteriskToken: *const RawNode,
-    pub body: *const RawNode,
+    pub expression: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct SetAccessorDeclaration<'a> {
-    pub(crate) raw: *const RawSetAccessorDeclaration,
+pub struct JsxSpreadAttribute<'a> {
+    pub(crate) raw: *const RawJsxSpreadAttribute,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> SetAccessorDeclaration<'a> {
+impl<'a> JsxSpreadAttribute<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn postfix_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).postfixToken })
-    }
-
-    pub fn type_parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeParameters })
-    }
-
-    pub fn parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).parameters })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn full_signature(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).fullSignature })
-    }
-
-    pub fn asterisk_token(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).asteriskToken })
-    }
-
-    pub fn body(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).body })
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
     }
 }
 
-impl<'a> FromNode<'a> for SetAccessorDeclaration<'a> {
+impl<'a> FromNode<'a> for JsxSpreadAttribute<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::SetAccessor)
+        matches!(kind, Kind::JsxSpreadAttribute)
     }
 
     #[inline(always)]
@@ -8127,44 +8319,33 @@ impl<'a> FromNode<'a> for SetAccessorDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawClassStaticBlockDeclaration {
+pub struct RawJsxClosingElement {
     pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad0: [u8; 24],
-    pub body: *const RawNode,
+    pub tagName: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct ClassStaticBlockDeclaration<'a> {
-    pub(crate) raw: *const RawClassStaticBlockDeclaration,
+pub struct JsxClosingElement<'a> {
+    pub(crate) raw: *const RawJsxClosingElement,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ClassStaticBlockDeclaration<'a> {
+impl<'a> JsxClosingElement<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn body(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).body })
+    pub fn tag_name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).tagName })
     }
 }
 
-impl<'a> FromNode<'a> for ClassStaticBlockDeclaration<'a> {
+impl<'a> FromNode<'a> for JsxClosingElement<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ClassStaticBlockDeclaration)
+        matches!(kind, Kind::JsxClosingElement)
     }
 
     #[inline(always)]
@@ -8178,33 +8359,38 @@ impl<'a> FromNode<'a> for ClassStaticBlockDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawSemicolonClassElement {
+pub struct RawJsxExpression {
     pub node: RawNode,
-    pub symbol: *const RawSymbol,
+    pub dotDotDotToken: *const RawNode,
+    pub expression: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct SemicolonClassElement<'a> {
-    pub(crate) raw: *const RawSemicolonClassElement,
+pub struct JsxExpression<'a> {
+    pub(crate) raw: *const RawJsxExpression,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> SemicolonClassElement<'a> {
+impl<'a> JsxExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
+    pub fn dot_dot_dot_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).dotDotDotToken })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
     }
 }
 
-impl<'a> FromNode<'a> for SemicolonClassElement<'a> {
+impl<'a> FromNode<'a> for JsxExpression<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::SemicolonClassElement)
+        matches!(kind, Kind::JsxExpression)
     }
 
     #[inline(always)]
@@ -8218,54 +8404,40 @@ impl<'a> FromNode<'a> for SemicolonClassElement<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawCallSignatureDeclaration {
+pub struct RawJsxText {
     pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub _pad0: [u8; 16],
-    pub typeParameters: *const RawNodeList,
-    pub parameters: *const RawNodeList,
-    pub r_type: *const RawNode,
-    pub fullSignature: *const RawNode,
+    pub text: GoString,
+    pub _pad0: [u8; 4],
+    pub _pad1: [u8; 4],
+    pub containsOnlyTriviaWhiteSpaces: u8,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct CallSignatureDeclaration<'a> {
-    pub(crate) raw: *const RawCallSignatureDeclaration,
+pub struct JsxText<'a> {
+    pub(crate) raw: *const RawJsxText,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> CallSignatureDeclaration<'a> {
+impl<'a> JsxText<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
     }
 
-    pub fn type_parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeParameters })
-    }
-
-    pub fn parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).parameters })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn full_signature(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).fullSignature })
+    pub fn contains_only_trivia_white_spaces(self) -> bool {
+        unsafe { (*self.raw).containsOnlyTriviaWhiteSpaces != 0 }
     }
 }
 
-impl<'a> FromNode<'a> for CallSignatureDeclaration<'a> {
+impl<'a> FromNode<'a> for JsxText<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::CallSignature)
+        matches!(kind, Kind::JsxText)
     }
 
     #[inline(always)]
@@ -8279,322 +8451,33 @@ impl<'a> FromNode<'a> for CallSignatureDeclaration<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawConstructSignatureDeclaration {
+pub struct RawSyntaxList {
     pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub _pad0: [u8; 16],
-    pub typeParameters: *const RawNodeList,
-    pub parameters: *const RawNodeList,
-    pub r_type: *const RawNode,
-    pub fullSignature: *const RawNode,
+    pub children: GoSlice<*const RawNode>,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct ConstructSignatureDeclaration<'a> {
-    pub(crate) raw: *const RawConstructSignatureDeclaration,
+pub struct SyntaxList<'a> {
+    pub(crate) raw: *const RawSyntaxList,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ConstructSignatureDeclaration<'a> {
+impl<'a> SyntaxList<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn type_parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeParameters })
-    }
-
-    pub fn parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).parameters })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn full_signature(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).fullSignature })
+    pub fn children(self) -> SliceIter<'a, RawNode, Node<'a>> {
+        slice_iter(unsafe { (*self.raw).children })
     }
 }
 
-impl<'a> FromNode<'a> for ConstructSignatureDeclaration<'a> {
+impl<'a> FromNode<'a> for SyntaxList<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ConstructSignature)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawIndexSignatureDeclaration {
-    pub node: RawNode,
-    pub symbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad0: [u8; 16],
-    pub typeParameters: *const RawNodeList,
-    pub parameters: *const RawNodeList,
-    pub r_type: *const RawNode,
-    pub fullSignature: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct IndexSignatureDeclaration<'a> {
-    pub(crate) raw: *const RawIndexSignatureDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> IndexSignatureDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn type_parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).typeParameters })
-    }
-
-    pub fn parameters(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).parameters })
-    }
-
-    pub fn r_type(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).r_type })
-    }
-
-    pub fn full_signature(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).fullSignature })
-    }
-}
-
-impl<'a> FromNode<'a> for IndexSignatureDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::IndexSignature)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawDebuggerStatement {
-    pub node: RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct DebuggerStatement<'a> {
-    pub(crate) raw: *const RawDebuggerStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> DebuggerStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-}
-
-impl<'a> FromNode<'a> for DebuggerStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::DebuggerStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawEmptyStatement {
-    pub node: RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct EmptyStatement<'a> {
-    pub(crate) raw: *const RawEmptyStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> EmptyStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-}
-
-impl<'a> FromNode<'a> for EmptyStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::EmptyStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawEnumDeclaration {
-    pub node: RawNode,
-    pub _pad0: [u8; 8],
-    pub symbol: *const RawSymbol,
-    pub localSymbol: *const RawSymbol,
-    pub modifiers: *const RawModifierList,
-    pub _pad1: [u8; 8],
-    pub name: *const RawNode,
-    pub members: *const RawNodeList,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct EnumDeclaration<'a> {
-    pub(crate) raw: *const RawEnumDeclaration,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> EnumDeclaration<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn local_symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).localSymbol })
-    }
-
-    pub fn modifiers(self) -> Option<ModifierList<'a>> {
-        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn members(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).members })
-    }
-}
-
-impl<'a> FromNode<'a> for EnumDeclaration<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::EnumDeclaration)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawNotEmittedStatement {
-    pub node: RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct NotEmittedStatement<'a> {
-    pub(crate) raw: *const RawNotEmittedStatement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> NotEmittedStatement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-}
-
-impl<'a> FromNode<'a> for NotEmittedStatement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NotEmittedStatement)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawNotEmittedTypeElement {
-    pub node: RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct NotEmittedTypeElement<'a> {
-    pub(crate) raw: *const RawNotEmittedTypeElement,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> NotEmittedTypeElement<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-}
-
-impl<'a> FromNode<'a> for NotEmittedTypeElement<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NotEmittedTypeElement)
+        matches!(kind, Kind::SyntaxList)
     }
 
     #[inline(always)]
@@ -8624,7 +8507,7 @@ pub struct JSDoc<'a> {
 impl<'a> JSDoc<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn comment(self) -> Option<NodeList<'a>> {
@@ -8640,181 +8523,6 @@ impl<'a> FromNode<'a> for JSDoc<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
         matches!(kind, Kind::JSDoc)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJSDocText {
-    pub node: RawNode,
-    pub text: GoSlice<GoString>,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JSDocText<'a> {
-    pub(crate) raw: *const RawJSDocText,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JSDocText<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> GoSlice<GoString> {
-        unsafe { (*self.raw).text }
-    }
-}
-
-impl<'a> FromNode<'a> for JSDocText<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JSDocText)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJSDocLink {
-    pub node: RawNode,
-    pub text: GoSlice<GoString>,
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JSDocLink<'a> {
-    pub(crate) raw: *const RawJSDocLink,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JSDocLink<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> GoSlice<GoString> {
-        unsafe { (*self.raw).text }
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for JSDocLink<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JSDocLink)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJSDocLinkPlain {
-    pub node: RawNode,
-    pub text: GoSlice<GoString>,
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JSDocLinkPlain<'a> {
-    pub(crate) raw: *const RawJSDocLinkPlain,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JSDocLinkPlain<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> GoSlice<GoString> {
-        unsafe { (*self.raw).text }
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for JSDocLinkPlain<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JSDocLinkPlain)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJSDocLinkCode {
-    pub node: RawNode,
-    pub text: GoSlice<GoString>,
-    pub name: *const RawNode,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JSDocLinkCode<'a> {
-    pub(crate) raw: *const RawJSDocLinkCode,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JSDocLinkCode<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn text(self) -> GoSlice<GoString> {
-        unsafe { (*self.raw).text }
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-}
-
-impl<'a> FromNode<'a> for JSDocLinkCode<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JSDocLinkCode)
     }
 
     #[inline(always)]
@@ -8844,7 +8552,7 @@ pub struct JSDocTypeExpression<'a> {
 impl<'a> JSDocTypeExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn r_type(self) -> Option<Node<'a>> {
@@ -8885,7 +8593,7 @@ pub struct JSDocNonNullableType<'a> {
 impl<'a> JSDocNonNullableType<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn r_type(self) -> Option<Node<'a>> {
@@ -8926,7 +8634,7 @@ pub struct JSDocNullableType<'a> {
 impl<'a> JSDocNullableType<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn r_type(self) -> Option<Node<'a>> {
@@ -8965,7 +8673,7 @@ pub struct JSDocAllType<'a> {
 impl<'a> JSDocAllType<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 }
 
@@ -9002,7 +8710,7 @@ pub struct JSDocVariadicType<'a> {
 impl<'a> JSDocVariadicType<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn r_type(self) -> Option<Node<'a>> {
@@ -9043,7 +8751,7 @@ pub struct JSDocOptionalType<'a> {
 impl<'a> JSDocOptionalType<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn r_type(self) -> Option<Node<'a>> {
@@ -9085,7 +8793,7 @@ pub struct JSDocTypeTag<'a> {
 impl<'a> JSDocTypeTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9134,7 +8842,7 @@ pub struct JSDocUnknownTag<'a> {
 impl<'a> JSDocUnknownTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9149,7 +8857,7 @@ impl<'a> JSDocUnknownTag<'a> {
 impl<'a> FromNode<'a> for JSDocUnknownTag<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JSDocTag)
+        matches!(kind, Kind::JSDocUnknownTag)
     }
 
     #[inline(always)]
@@ -9181,7 +8889,7 @@ pub struct JSDocTemplateTag<'a> {
 impl<'a> JSDocTemplateTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9218,72 +8926,6 @@ impl<'a> FromNode<'a> for JSDocTemplateTag<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawJSDocParameterOrPropertyTag {
-    pub node: RawNode,
-    pub tagName: *const RawNode,
-    pub comment: *const RawNodeList,
-    pub name: *const RawNode,
-    pub isBracketed: u8,
-    pub _pad0: [u8; 7],
-    pub typeExpression: *const RawNode,
-    pub isNameFirst: u8,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JSDocParameterOrPropertyTag<'a> {
-    pub(crate) raw: *const RawJSDocParameterOrPropertyTag,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JSDocParameterOrPropertyTag<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn tag_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).tagName })
-    }
-
-    pub fn comment(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).comment })
-    }
-
-    pub fn name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).name })
-    }
-
-    pub fn is_bracketed(self) -> bool {
-        unsafe { (*self.raw).isBracketed != 0 }
-    }
-
-    pub fn type_expression(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).typeExpression })
-    }
-
-    pub fn is_name_first(self) -> bool {
-        unsafe { (*self.raw).isNameFirst != 0 }
-    }
-}
-
-impl<'a> FromNode<'a> for JSDocParameterOrPropertyTag<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JSDocParameterTag | Kind::JSDocPropertyTag)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
 pub struct RawJSDocReturnTag {
     pub node: RawNode,
     pub tagName: *const RawNode,
@@ -9301,7 +8943,7 @@ pub struct JSDocReturnTag<'a> {
 impl<'a> JSDocReturnTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9350,7 +8992,7 @@ pub struct JSDocPublicTag<'a> {
 impl<'a> JSDocPublicTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9395,7 +9037,7 @@ pub struct JSDocPrivateTag<'a> {
 impl<'a> JSDocPrivateTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9440,7 +9082,7 @@ pub struct JSDocProtectedTag<'a> {
 impl<'a> JSDocProtectedTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9485,7 +9127,7 @@ pub struct JSDocReadonlyTag<'a> {
 impl<'a> JSDocReadonlyTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9530,7 +9172,7 @@ pub struct JSDocOverrideTag<'a> {
 impl<'a> JSDocOverrideTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9575,7 +9217,7 @@ pub struct JSDocDeprecatedTag<'a> {
 impl<'a> JSDocDeprecatedTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9621,7 +9263,7 @@ pub struct JSDocSeeTag<'a> {
 impl<'a> JSDocSeeTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9671,7 +9313,7 @@ pub struct JSDocImplementsTag<'a> {
 impl<'a> JSDocImplementsTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9721,7 +9363,7 @@ pub struct JSDocAugmentsTag<'a> {
 impl<'a> JSDocAugmentsTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9771,7 +9413,7 @@ pub struct JSDocSatisfiesTag<'a> {
 impl<'a> JSDocSatisfiesTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9821,7 +9463,7 @@ pub struct JSDocThrowsTag<'a> {
 impl<'a> JSDocThrowsTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9871,7 +9513,7 @@ pub struct JSDocThisTag<'a> {
 impl<'a> JSDocThisTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9923,7 +9565,7 @@ pub struct JSDocImportTag<'a> {
 impl<'a> JSDocImportTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9968,8 +9610,8 @@ pub struct RawJSDocCallbackTag {
     pub node: RawNode,
     pub tagName: *const RawNode,
     pub comment: *const RawNodeList,
-    pub fullName: *const RawNode,
     pub typeExpression: *const RawNode,
+    pub name: *const RawNode,
 }
 
 #[repr(transparent)]
@@ -9982,7 +9624,7 @@ pub struct JSDocCallbackTag<'a> {
 impl<'a> JSDocCallbackTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -9993,12 +9635,12 @@ impl<'a> JSDocCallbackTag<'a> {
         node_list_from_raw(unsafe { (*self.raw).comment })
     }
 
-    pub fn full_name(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).fullName })
-    }
-
     pub fn type_expression(self) -> Option<Node<'a>> {
         node_from_raw(unsafe { (*self.raw).typeExpression })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
     }
 }
 
@@ -10036,7 +9678,7 @@ pub struct JSDocOverloadTag<'a> {
 impl<'a> JSDocOverloadTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -10087,7 +9729,7 @@ pub struct JSDocTypedefTag<'a> {
 impl<'a> JSDocTypedefTag<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn tag_name(self) -> Option<Node<'a>> {
@@ -10124,60 +9766,12 @@ impl<'a> FromNode<'a> for JSDocTypedefTag<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawJSDocTypeLiteral {
+pub struct RawJSDocSignature {
     pub node: RawNode,
     pub _pad0: [u8; 8],
     pub symbol: *const RawSymbol,
-    pub jSDocPropertyTags: GoSlice<*const RawNode>,
-    pub isArrayType: u8,
-}
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct JSDocTypeLiteral<'a> {
-    pub(crate) raw: *const RawJSDocTypeLiteral,
-    _marker: marker::PhantomData<&'a ()>,
-}
-
-impl<'a> JSDocTypeLiteral<'a> {
-    #[inline(always)]
-    pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
-    }
-
-    pub fn symbol(self) -> Option<Symbol<'a>> {
-        symbol_from_raw(unsafe { (*self.raw).symbol })
-    }
-
-    pub fn js_doc_property_tags(self) -> SliceIter<'a, RawNode, Node<'a>> {
-        slice_iter(unsafe { (*self.raw).jSDocPropertyTags })
-    }
-
-    pub fn is_array_type(self) -> bool {
-        unsafe { (*self.raw).isArrayType != 0 }
-    }
-}
-
-impl<'a> FromNode<'a> for JSDocTypeLiteral<'a> {
-    #[inline(always)]
-    fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::JSDocTypeLiteral)
-    }
-
-    #[inline(always)]
-    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
-        Self {
-            raw: node.raw.cast(),
-            _marker: marker::PhantomData,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RawJSDocSignature {
-    pub node: RawNode,
-    pub _pad0: [u8; 24],
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
     pub typeParameters: *const RawNodeList,
     pub parameters: *const RawNodeList,
     pub r_type: *const RawNode,
@@ -10194,7 +9788,11 @@ pub struct JSDocSignature<'a> {
 impl<'a> JSDocSignature<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 
     pub fn type_parameters(self) -> Option<NodeList<'a>> {
@@ -10247,7 +9845,7 @@ pub struct JSDocNameReference<'a> {
 impl<'a> JSDocNameReference<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn name(self) -> Option<Node<'a>> {
@@ -10272,44 +9870,126 @@ impl<'a> FromNode<'a> for JSDocNameReference<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawNamespaceExport {
+pub struct RawSourceFile {
     pub node: RawNode,
+    pub _pad0: [u8; 120],
+    pub text: GoString,
+    pub statements: *const RawNodeList,
+    pub endOfFileToken: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct SourceFile<'a> {
+    pub(crate) raw: *const RawSourceFile,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> SourceFile<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> &'a str {
+        unsafe { (*self.raw).text.as_str() }
+    }
+
+    pub fn statements(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).statements })
+    }
+
+    pub fn end_of_file_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).endOfFileToken })
+    }
+}
+
+impl<'a> FromNode<'a> for SourceFile<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::SourceFile)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawModuleDeclaration {
     pub symbol: *const RawSymbol,
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub localSymbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub _pad1: [u8; 8],
+    pub _pad2: [u8; 8],
+    pub asteriskToken: *const RawNode,
+    pub body: *const RawNode,
+    pub _pad3: [u8; 8],
+    pub _pad4: [u8; 4],
+    pub keyword: Kind,
+    pub _pad5: [u8; 2],
     pub name: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct NamespaceExport<'a> {
-    pub(crate) raw: *const RawNamespaceExport,
+pub struct ModuleDeclaration<'a> {
+    pub(crate) raw: *const RawModuleDeclaration,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> NamespaceExport<'a> {
+impl<'a> ModuleDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn symbol(self) -> Option<Symbol<'a>> {
         symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn asterisk_token(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).asteriskToken })
+    }
+
+    pub fn body(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).body })
+    }
+
+    pub fn keyword(self) -> Kind {
+        unsafe { (*self.raw).keyword }
+    }
+
     pub fn name(self) -> Option<Node<'a>> {
         node_from_raw(unsafe { (*self.raw).name })
     }
 }
 
-impl<'a> FromNode<'a> for NamespaceExport<'a> {
+impl<'a> FromNode<'a> for ModuleDeclaration<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::NamespaceExport)
+        matches!(kind, Kind::ModuleDeclaration)
     }
 
     #[inline(always)]
     unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
         Self {
-            raw: node.raw.cast(),
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
             _marker: marker::PhantomData,
         }
     }
@@ -10317,39 +9997,191 @@ impl<'a> FromNode<'a> for NamespaceExport<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawImportAttribute {
+pub struct RawImportEqualsDeclaration {
+    pub symbol: *const RawSymbol,
     pub node: RawNode,
     pub _pad0: [u8; 8],
+    pub localSymbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub _pad1: [u8; 4],
+    pub isTypeOnly: u8,
+    pub _pad2: [u8; 3],
     pub name: *const RawNode,
-    pub value: *const RawNode,
+    pub moduleReference: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct ImportAttribute<'a> {
-    pub(crate) raw: *const RawImportAttribute,
+pub struct ImportEqualsDeclaration<'a> {
+    pub(crate) raw: *const RawImportEqualsDeclaration,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ImportAttribute<'a> {
+impl<'a> ImportEqualsDeclaration<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn is_type_only(self) -> bool {
+        unsafe { (*self.raw).isTypeOnly != 0 }
     }
 
     pub fn name(self) -> Option<Node<'a>> {
         node_from_raw(unsafe { (*self.raw).name })
     }
 
-    pub fn value(self) -> Option<Node<'a>> {
-        node_from_raw(unsafe { (*self.raw).value })
+    pub fn module_reference(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).moduleReference })
     }
 }
 
-impl<'a> FromNode<'a> for ImportAttribute<'a> {
+impl<'a> FromNode<'a> for ImportEqualsDeclaration<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ImportAttribute)
+        matches!(kind, Kind::ImportEqualsDeclaration)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawExportDeclaration {
+    pub symbol: *const RawSymbol,
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub modifiers: *const RawModifierList,
+    pub _pad1: [u8; 4],
+    pub isTypeOnly: u8,
+    pub _pad2: [u8; 3],
+    pub exportClause: *const RawNode,
+    pub moduleSpecifier: *const RawNode,
+    pub attributes: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ExportDeclaration<'a> {
+    pub(crate) raw: *const RawExportDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ExportDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn is_type_only(self) -> bool {
+        unsafe { (*self.raw).isTypeOnly != 0 }
+    }
+
+    pub fn export_clause(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).exportClause })
+    }
+
+    pub fn module_specifier(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).moduleSpecifier })
+    }
+
+    pub fn attributes(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).attributes })
+    }
+}
+
+impl<'a> FromNode<'a> for ExportDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ExportDeclaration)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: unsafe { node.raw.cast::<u8>().sub(8).cast() },
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawImportTypeNode {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub typeArguments: *const RawNodeList,
+    pub isTypeOf: u8,
+    pub _pad1: [u8; 7],
+    pub argument: *const RawNode,
+    pub attributes: *const RawNode,
+    pub qualifier: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ImportTypeNode<'a> {
+    pub(crate) raw: *const RawImportTypeNode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ImportTypeNode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn type_arguments(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).typeArguments })
+    }
+
+    pub fn is_type_of(self) -> bool {
+        unsafe { (*self.raw).isTypeOf != 0 }
+    }
+
+    pub fn argument(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).argument })
+    }
+
+    pub fn attributes(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).attributes })
+    }
+
+    pub fn qualifier(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).qualifier })
+    }
+}
+
+impl<'a> FromNode<'a> for ImportTypeNode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::ImportType)
     }
 
     #[inline(always)]
@@ -10363,45 +10195,55 @@ impl<'a> FromNode<'a> for ImportAttribute<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawImportAttributes {
+pub struct RawImportClause {
     pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub localSymbol: *const RawSymbol,
     pub _pad0: [u8; 4],
-    pub token: Kind,
+    pub phaseModifier: Kind,
     pub _pad1: [u8; 2],
-    pub attributes: *const RawNodeList,
-    pub multiLine: u8,
+    pub name: *const RawNode,
+    pub namedBindings: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct ImportAttributes<'a> {
-    pub(crate) raw: *const RawImportAttributes,
+pub struct ImportClause<'a> {
+    pub(crate) raw: *const RawImportClause,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ImportAttributes<'a> {
+impl<'a> ImportClause<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn token(self) -> Kind {
-        unsafe { (*self.raw).token }
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
     }
 
-    pub fn attributes(self) -> Option<NodeList<'a>> {
-        node_list_from_raw(unsafe { (*self.raw).attributes })
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
     }
 
-    pub fn multi_line(self) -> bool {
-        unsafe { (*self.raw).multiLine != 0 }
+    pub fn phase_modifier(self) -> Kind {
+        unsafe { (*self.raw).phaseModifier }
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn named_bindings(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).namedBindings })
     }
 }
 
-impl<'a> FromNode<'a> for ImportAttributes<'a> {
+impl<'a> FromNode<'a> for ImportClause<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::ImportAttributes)
+        matches!(kind, Kind::ImportClause)
     }
 
     #[inline(always)]
@@ -10415,33 +10257,295 @@ impl<'a> FromNode<'a> for ImportAttributes<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct RawSyntaxList {
+pub struct RawImportSpecifier {
     pub node: RawNode,
-    pub children: GoSlice<*const RawNode>,
+    pub symbol: *const RawSymbol,
+    pub localSymbol: *const RawSymbol,
+    pub _pad0: [u8; 4],
+    pub isTypeOnly: u8,
+    pub _pad1: [u8; 3],
+    pub propertyName: *const RawNode,
+    pub name: *const RawNode,
 }
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct SyntaxList<'a> {
-    pub(crate) raw: *const RawSyntaxList,
+pub struct ImportSpecifier<'a> {
+    pub(crate) raw: *const RawImportSpecifier,
     _marker: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> SyntaxList<'a> {
+impl<'a> ImportSpecifier<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
-    pub fn children(self) -> SliceIter<'a, RawNode, Node<'a>> {
-        slice_iter(unsafe { (*self.raw).children })
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn local_symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).localSymbol })
+    }
+
+    pub fn is_type_only(self) -> bool {
+        unsafe { (*self.raw).isTypeOnly != 0 }
+    }
+
+    pub fn property_name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).propertyName })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
     }
 }
 
-impl<'a> FromNode<'a> for SyntaxList<'a> {
+impl<'a> FromNode<'a> for ImportSpecifier<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
-        matches!(kind, Kind::SyntaxList)
+        matches!(kind, Kind::ImportSpecifier)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJSDocText {
+    pub node: RawNode,
+    pub text: GoSlice<GoString>,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JSDocText<'a> {
+    pub(crate) raw: *const RawJSDocText,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JSDocText<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> GoSlice<GoString> {
+        unsafe { (*self.raw).text }
+    }
+}
+
+impl<'a> FromNode<'a> for JSDocText<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JSDocText)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJSDocLink {
+    pub node: RawNode,
+    pub text: GoSlice<GoString>,
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JSDocLink<'a> {
+    pub(crate) raw: *const RawJSDocLink,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JSDocLink<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> GoSlice<GoString> {
+        unsafe { (*self.raw).text }
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+}
+
+impl<'a> FromNode<'a> for JSDocLink<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JSDocLink)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJSDocLinkPlain {
+    pub node: RawNode,
+    pub text: GoSlice<GoString>,
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JSDocLinkPlain<'a> {
+    pub(crate) raw: *const RawJSDocLinkPlain,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JSDocLinkPlain<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> GoSlice<GoString> {
+        unsafe { (*self.raw).text }
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+}
+
+impl<'a> FromNode<'a> for JSDocLinkPlain<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JSDocLinkPlain)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJSDocLinkCode {
+    pub node: RawNode,
+    pub text: GoSlice<GoString>,
+    pub name: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JSDocLinkCode<'a> {
+    pub(crate) raw: *const RawJSDocLinkCode,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JSDocLinkCode<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn text(self) -> GoSlice<GoString> {
+        unsafe { (*self.raw).text }
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+}
+
+impl<'a> FromNode<'a> for JSDocLinkCode<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JSDocLinkCode)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawTypeParameterDeclaration {
+    pub node: RawNode,
+    pub symbol: *const RawSymbol,
+    pub modifiers: *const RawModifierList,
+    pub name: *const RawNode,
+    pub constraint: *const RawNode,
+    pub expression: *const RawNode,
+    pub defaultType: *const RawNode,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TypeParameterDeclaration<'a> {
+    pub(crate) raw: *const RawTypeParameterDeclaration,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> TypeParameterDeclaration<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn modifiers(self) -> Option<ModifierList<'a>> {
+        modifier_list_from_raw(unsafe { (*self.raw).modifiers })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn constraint(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).constraint })
+    }
+
+    pub fn expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).expression })
+    }
+
+    pub fn default_type(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).defaultType })
+    }
+}
+
+impl<'a> FromNode<'a> for TypeParameterDeclaration<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::TypeParameter)
     }
 
     #[inline(always)]
@@ -10471,7 +10575,7 @@ pub struct SyntheticReferenceExpression<'a> {
 impl<'a> SyntheticReferenceExpression<'a> {
     #[inline(always)]
     pub fn as_node(self) -> Node<'a> {
-        Node::from_raw(self.raw.cast())
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
     }
 
     pub fn expression(self) -> Option<Node<'a>> {
@@ -10487,6 +10591,123 @@ impl<'a> FromNode<'a> for SyntheticReferenceExpression<'a> {
     #[inline(always)]
     fn matches(kind: Kind) -> bool {
         matches!(kind, Kind::SyntheticReferenceExpression)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJSDocTypeLiteral {
+    pub node: RawNode,
+    pub _pad0: [u8; 8],
+    pub symbol: *const RawSymbol,
+    pub jSDocPropertyTags: GoSlice<*const RawNode>,
+    pub isArrayType: u8,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JSDocTypeLiteral<'a> {
+    pub(crate) raw: *const RawJSDocTypeLiteral,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JSDocTypeLiteral<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn symbol(self) -> Option<Symbol<'a>> {
+        symbol_from_raw(unsafe { (*self.raw).symbol })
+    }
+
+    pub fn js_doc_property_tags(self) -> SliceIter<'a, RawNode, Node<'a>> {
+        slice_iter(unsafe { (*self.raw).jSDocPropertyTags })
+    }
+
+    pub fn is_array_type(self) -> bool {
+        unsafe { (*self.raw).isArrayType != 0 }
+    }
+}
+
+impl<'a> FromNode<'a> for JSDocTypeLiteral<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JSDocTypeLiteral)
+    }
+
+    #[inline(always)]
+    unsafe fn from_node_unchecked(node: Node<'a>) -> Self {
+        Self {
+            raw: node.raw.cast(),
+            _marker: marker::PhantomData,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RawJSDocParameterOrPropertyTag {
+    pub node: RawNode,
+    pub tagName: *const RawNode,
+    pub comment: *const RawNodeList,
+    pub name: *const RawNode,
+    pub isBracketed: u8,
+    pub _pad0: [u8; 7],
+    pub typeExpression: *const RawNode,
+    pub isNameFirst: u8,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct JSDocParameterOrPropertyTag<'a> {
+    pub(crate) raw: *const RawJSDocParameterOrPropertyTag,
+    _marker: marker::PhantomData<&'a ()>,
+}
+
+impl<'a> JSDocParameterOrPropertyTag<'a> {
+    #[inline(always)]
+    pub fn as_node(self) -> Node<'a> {
+        Node::from_raw(unsafe { std::ptr::addr_of!((*self.raw).node) })
+    }
+
+    pub fn tag_name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).tagName })
+    }
+
+    pub fn comment(self) -> Option<NodeList<'a>> {
+        node_list_from_raw(unsafe { (*self.raw).comment })
+    }
+
+    pub fn name(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).name })
+    }
+
+    pub fn is_bracketed(self) -> bool {
+        unsafe { (*self.raw).isBracketed != 0 }
+    }
+
+    pub fn type_expression(self) -> Option<Node<'a>> {
+        node_from_raw(unsafe { (*self.raw).typeExpression })
+    }
+
+    pub fn is_name_first(self) -> bool {
+        unsafe { (*self.raw).isNameFirst != 0 }
+    }
+}
+
+impl<'a> FromNode<'a> for JSDocParameterOrPropertyTag<'a> {
+    #[inline(always)]
+    fn matches(kind: Kind) -> bool {
+        matches!(kind, Kind::JSDocParameterTag | Kind::JSDocPropertyTag)
     }
 
     #[inline(always)]

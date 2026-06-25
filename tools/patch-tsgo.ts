@@ -36,11 +36,6 @@ await spawn('npm', ['install'], {
 })
 
 await spawn('npx', ['tsc', '-b'], {
-	cwd: path.join(dir, '_packages', 'ast'),
-	stdio: 'inherit',
-})
-
-await spawn('npx', ['tsc', '-b'], {
-	cwd: path.join(dir, '_packages', 'api'),
+	cwd: path.join(dir, '_packages', 'native-preview'),
 	stdio: 'inherit',
 })

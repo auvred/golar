@@ -1,47 +1,47 @@
-From 97120f69e16c31f8a9331fb48188c46c73d4ef8d Mon Sep 17 00:00:00 2001
+From de5c287baf6fd3a4b320c4b3bebee2c8c1d345c4 Mon Sep 17 00:00:00 2001
 From: auvred <aauvred@gmail.com>
 Date: Mon, 9 Mar 2026 10:37:15 +0300
 Subject: [PATCH 3/3] More extensions
 
 ---
- _packages/api/src/node/node.ts     |  8 ++++++++
- _packages/api/src/node/protocol.ts |  3 ++-
- pkg/api/encoder/encoder.go         | 12 ++++++++----
- pkg/ast/ast.go                     |  8 +++++++-
- pkg/ast/utilities.go               | 20 +++++++++++---------
- 5 files changed, 36 insertions(+), 15 deletions(-)
+ .../src/api/node/node.generated.ts            |  9 ++++++++
+ .../native-preview/src/api/node/protocol.ts   |  3 ++-
+ _scripts/generate-encoder.ts                  | 21 +++++++++++++------
+ pkg/api/encoder/encoder.go                    | 12 +++++++----
+ pkg/ast/ast.go                                |  8 ++++++-
+ pkg/ast/utilities.go                          | 20 ++++++++++--------
+ 6 files changed, 52 insertions(+), 21 deletions(-)
 
-diff --git a/_packages/api/src/node/node.ts b/_packages/api/src/node/node.ts
-index 9295c7457..57e4ba5f7 100644
---- a/_packages/api/src/node/node.ts
-+++ b/_packages/api/src/node/node.ts
-@@ -26,6 +26,7 @@ import {
-     NODE_DATA_TYPE_EXTENDED,
-     NODE_DATA_TYPE_STRING,
-     NODE_LEN,
+diff --git a/_packages/native-preview/src/api/node/node.generated.ts b/_packages/native-preview/src/api/node/node.generated.ts
+index ff74677b3..915251b8c 100644
+--- a/_packages/native-preview/src/api/node/node.generated.ts
++++ b/_packages/native-preview/src/api/node/node.generated.ts
+@@ -32,6 +32,7 @@ import {
+     NODE_OFFSET_KIND,
+     NODE_OFFSET_NEXT,
+     NODE_OFFSET_PARENT,
 +    NODE_OFFSET_POINTER,
+     NODE_OFFSET_POS,
  } from "./protocol.ts";
  
- const popcount8 = [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8];
-@@ -1032,6 +1033,13 @@ export class RemoteNode extends RemoteNodeBase implements Node {
-             flags |= modifierToFlag(mod.kind);
+@@ -920,4 +921,12 @@ export class RemoteNode extends RemoteNodeBase implements Node {
          }
          return flags;
-+		}
+     }
 +
-+		get pointerHi(): number {
++    get pointerHi(): number {
 +        return this.view.getUint32(this._byteIndex + NODE_OFFSET_POINTER + 4, true);
 +    }
++
 +    get pointerLo(): number {
 +        return this.view.getUint32(this._byteIndex + NODE_OFFSET_POINTER, true);
-     }
- 
-     get phaseModifier(): SyntaxKind {
-diff --git a/_packages/api/src/node/protocol.ts b/_packages/api/src/node/protocol.ts
-index db97fcfac..7d800de4d 100644
---- a/_packages/api/src/node/protocol.ts
-+++ b/_packages/api/src/node/protocol.ts
-@@ -15,7 +15,7 @@ export const HEADER_OFFSET_STRUCTURED_DATA = 36;
++    }
+ }
+diff --git a/_packages/native-preview/src/api/node/protocol.ts b/_packages/native-preview/src/api/node/protocol.ts
+index b21098cc2..70ec52971 100644
+--- a/_packages/native-preview/src/api/node/protocol.ts
++++ b/_packages/native-preview/src/api/node/protocol.ts
+@@ -13,7 +13,7 @@ export const HEADER_OFFSET_STRUCTURED_DATA = 36;
  export const HEADER_OFFSET_NODES = 40;
  export const HEADER_SIZE = 44;
  
@@ -50,7 +50,7 @@ index db97fcfac..7d800de4d 100644
  
  export const NODE_OFFSET_KIND = 0;
  export const NODE_OFFSET_POS = 4;
-@@ -24,6 +24,7 @@ export const NODE_OFFSET_NEXT = 12;
+@@ -22,6 +22,7 @@ export const NODE_OFFSET_NEXT = 12;
  export const NODE_OFFSET_PARENT = 16;
  export const NODE_OFFSET_DATA = 20;
  export const NODE_OFFSET_FLAGS = 24;
@@ -58,8 +58,81 @@ index db97fcfac..7d800de4d 100644
  
  export const KIND_NODE_LIST = 0xFFFFFFFF;
  
+diff --git a/_scripts/generate-encoder.ts b/_scripts/generate-encoder.ts
+index caddf3356..01fe29dec 100644
+--- a/_scripts/generate-encoder.ts
++++ b/_scripts/generate-encoder.ts
+@@ -5,8 +5,8 @@
+  * Usage: node --experimental-strip-types _scripts/generate-encoder.ts
+  *
+  * Generates:
+- *   - internal/api/encoder/encoder_generated.go
+- *   - internal/api/encoder/decoder_generated.go
++ *   - pkg/api/encoder/encoder_generated.go
++ *   - pkg/api/encoder/decoder_generated.go
+  *   - _packages/native-preview/src/api/node/protocol.generated.ts
+  */
+ 
+@@ -349,7 +349,7 @@ function generateGoEncoder(): string {
+     w.push();
+     w.write('"fmt"');
+     w.write("");
+-    w.write('"github.com/microsoft/typescript-go/internal/ast"');
++    w.write('"github.com/microsoft/typescript-go/pkg/ast"');
+     w.pop();
+     w.write(")");
+     w.write("");
+@@ -596,7 +596,7 @@ function generateGoDecoder(): string {
+     w.push();
+     w.write('"fmt"');
+     w.write("");
+-    w.write('"github.com/microsoft/typescript-go/internal/ast"');
++    w.write('"github.com/microsoft/typescript-go/pkg/ast"');
+     w.pop();
+     w.write(")");
+     w.write("");
+@@ -1495,6 +1495,7 @@ function emitNodeGeneratedImports(w: CodeWriter) {
+     w.write(`    NODE_OFFSET_NEXT,`);
+     w.write(`    NODE_OFFSET_PARENT,`);
+     w.write(`    NODE_OFFSET_POS,`);
++    w.write(`    NODE_OFFSET_POINTER,`);
+     w.write(`} from "./protocol.ts";`);
+     w.write(`import {`);
+     w.write(`    type NodeDataType,`);
+@@ -1966,6 +1967,14 @@ function emitRemoteNodeClassClose(w: CodeWriter) {
+     w.write(`        }`);
+     w.write(`        return flags;`);
+     w.write(`    }`);
++    w.write(``);
++    w.write(`    get pointerHi(): number {`);
++    w.write(`        return this.view.getUint32(this._byteIndex + NODE_OFFSET_POINTER + 4, true);`);
++    w.write(`    }`);
++    w.write(``);
++    w.write(`    get pointerLo(): number {`);
++    w.write(`        return this.view.getUint32(this._byteIndex + NODE_OFFSET_POINTER, true);`);
++    w.write(`    }`);
+     w.write(`}`);
+ }
+ 
+@@ -1990,14 +1999,14 @@ export default function main() {
+ 
+     const goEncoder = generateGoEncoder();
+     writeAndFormat(
+-        path.join(ROOT, "internal/api/encoder/encoder_generated.go"),
++        path.join(ROOT, "pkg/api/encoder/encoder_generated.go"),
+         goEncoder + "\n",
+         "dprint fmt",
+     );
+ 
+     const goDecoder = generateGoDecoder();
+     writeAndFormat(
+-        path.join(ROOT, "internal/api/encoder/decoder_generated.go"),
++        path.join(ROOT, "pkg/api/encoder/decoder_generated.go"),
+         goDecoder + "\n",
+         "dprint fmt",
+     );
 diff --git a/pkg/api/encoder/encoder.go b/pkg/api/encoder/encoder.go
-index 40ea45e0b..8fad450f6 100644
+index a201235c8..3d1370549 100644
 --- a/pkg/api/encoder/encoder.go
 +++ b/pkg/api/encoder/encoder.go
 @@ -1,5 +1,7 @@
@@ -68,9 +141,9 @@ index 40ea45e0b..8fad450f6 100644
 +import "unsafe"
 +
  import (
+ 	"cmp"
  	"encoding/binary"
- 	"fmt"
-@@ -17,8 +19,9 @@ const (
+@@ -26,8 +28,9 @@ const (
  	NodeOffsetParent
  	NodeOffsetData
  	NodeOffsetFlags
@@ -81,7 +154,7 @@ index 40ea45e0b..8fad450f6 100644
  )
  
  const (
-@@ -367,7 +370,7 @@ func encodeTree(rootNode *ast.Node, sourceFile *ast.SourceFile) ([]byte, error)
+@@ -485,7 +488,7 @@ func encodeTree(rootNode *ast.Node, sourceFile *ast.SourceFile) ([]byte, *NodeIn
  					nodes[prevIndex*NodeSize+NodeOffsetNext+3] = b3
  				}
  
@@ -90,7 +163,7 @@ index 40ea45e0b..8fad450f6 100644
  
  				saveParentIndex := parentIndex
  
-@@ -400,6 +403,7 @@ func encodeTree(rootNode *ast.Node, sourceFile *ast.SourceFile) ([]byte, error)
+@@ -519,6 +522,7 @@ func encodeTree(rootNode *ast.Node, sourceFile *ast.SourceFile) ([]byte, *NodeIn
  		}
  
  		nodes = appendUint32s(nodes, uint32(node.Kind), utf16(node.Pos()), utf16(node.End()), 0, parentIndex, getNodeData(node, strs, positionMap, &extendedData, &structuredData), uint32(node.Flags))
@@ -98,7 +171,7 @@ index 40ea45e0b..8fad450f6 100644
  
  		if nodeIndexMap != nil {
  			if _, ok := nodeIndexMap[node]; ok {
-@@ -423,13 +427,13 @@ func encodeTree(rootNode *ast.Node, sourceFile *ast.SourceFile) ([]byte, error)
+@@ -542,14 +546,14 @@ func encodeTree(rootNode *ast.Node, sourceFile *ast.SourceFile) ([]byte, *NodeIn
  		return node
  	}
  
@@ -107,6 +180,7 @@ index 40ea45e0b..8fad450f6 100644
  
  	nodeCount++
  	parentIndex++
+ 	nodeTable = append(nodeTable, rootNode) // index 1 = root node
  
  	sfExtendedDataOffset = len(extendedData)
 -	nodes = appendUint32s(nodes, uint32(rootNode.Kind), utf16(rootNode.Pos()), utf16(rootNode.End()), 0, 0, getNodeData(rootNode, strs, positionMap, &extendedData, &structuredData), uint32(rootNode.Flags))
@@ -115,10 +189,10 @@ index 40ea45e0b..8fad450f6 100644
  	visitor.VisitEachChild(rootNode)
  	if sourceFile != nil {
 diff --git a/pkg/ast/ast.go b/pkg/ast/ast.go
-index ffcb8c269..643b0d387 100644
+index b53e16af8..9a5b94410 100644
 --- a/pkg/ast/ast.go
 +++ b/pkg/ast/ast.go
-@@ -237,9 +237,11 @@ type Node struct {
+@@ -183,9 +183,11 @@ type Node struct {
  	Kind   Kind
  	Flags  NodeFlags
  	Loc    core.TextRange
@@ -131,15 +205,15 @@ index ffcb8c269..643b0d387 100644
  }
  
  func (n *Node) Data() nodeData {
-@@ -11052,6 +11054,7 @@ type SourceFile struct {
+@@ -2478,6 +2480,7 @@ type SourceFile struct {
  	LocalsContainerBase
- 	compositeNodeBase
+ 	CompositeBase
  
 +	Id                      uint32
  	GolarLanguageData       any
  	WrapSemanticDiagnostics func([]*Diagnostic) []*Diagnostic
  	WrapDiagnostics         func([]*Diagnostic) []*Diagnostic
-@@ -11129,11 +11132,14 @@ type SourceFile struct {
+@@ -2558,11 +2561,14 @@ type SourceFile struct {
  	positionMap     *PositionMap
  }
  
@@ -155,7 +229,7 @@ index ffcb8c269..643b0d387 100644
  	data.parseOptions = opts
  	data.text = text
 diff --git a/pkg/ast/utilities.go b/pkg/ast/utilities.go
-index 150c79e83..0a477af9f 100644
+index 9cf3cabdb..b4ad0c846 100644
 --- a/pkg/ast/utilities.go
 +++ b/pkg/ast/utilities.go
 @@ -20,15 +20,17 @@ var (

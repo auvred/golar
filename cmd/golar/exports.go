@@ -216,7 +216,7 @@ func golar_js_tsc(threadId C.uint32_t, doneCbTsfn C.uintptr_t) {
 	argv, _ := buf.readStringsList(0)
 
 	go func() {
-		result := execute.CommandLine(utils.NewOsSystem(), argv, nil)
+		result := execute.CommandLine(context.Background(), utils.NewOsSystem(), argv, nil)
 		C.napi_call_threadsafe_function_any(doneCbTsfn, C.uintptr_t(result.Status), 0)
 	}()
 }

@@ -48,7 +48,7 @@ test('all languages', async () => {
 		2  const vue: string = 123
 		         ~~~
 
-		comp.vue:6:10 - error TS2339: Property 'unknownVar' does not exist on type 'ComponentPublicInstance<{}, {}, {}, {}, {}, {}, {}, {}, false, ComponentOptionsBase<any, any, any, any, any, any, any, any, any, {}, {}, string, {}, {}, {}, string, ComponentProvideOptions>, ... 5 more ..., any>'.
+		comp.vue:6:10 - error TS2339: Property 'unknownVar' does not exist on type 'ComponentPublicInstance<{}, {}, {}, {}, {}, {}, {}, {}, false, ComponentOptionsBase<any, any, any, any, any, any, any, any, any, {}, {}, string, {}, {}, {}, string, ComponentProvideOptions>, ... 4 more ..., any>'.
 
 		6  <div>{{ unknownVar }}</div>
 		           ~~~~~~~~~~

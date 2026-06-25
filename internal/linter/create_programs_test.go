@@ -414,7 +414,7 @@ func TestCreatePrograms_StampsNodeIDsToMatchEncodedOrder(t *testing.T) {
 	assert.Equal(t, sourceFile.AsNode().Id, uint32(1))
 	assert.Equal(t, sourceFile.AsNode().SourceFileId, sourceFile.Id)
 
-	encoded, err := apiencoder.EncodeSourceFile(sourceFile)
+	encoded, _, err := apiencoder.EncodeSourceFile(sourceFile)
 	assert.NilError(t, err)
 
 	encodedIndexes := encodedNodeIndexes(encoded)

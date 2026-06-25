@@ -117,7 +117,7 @@ func New(cwd string, filenames []string) *Workspace {
 func (w *Workspace) ReadRequestedFileAt(index uint32) (linter.ProgramSourceFile, []byte) {
 	file := w.RequestedFiles[index]
 
-	encodedFile, err := encoder.EncodeSourceFile(file.SourceFile)
+	encodedFile, _, err := encoder.EncodeSourceFile(file.SourceFile)
 	if err != nil {
 		panic(err)
 	}
@@ -125,7 +125,7 @@ func (w *Workspace) ReadRequestedFileAt(index uint32) (linter.ProgramSourceFile,
 }
 
 func (w *Workspace) ReadFileById(id uint32) []byte {
-	encodedFile, err := encoder.EncodeSourceFile(w.FilesById[id])
+	encodedFile, _, err := encoder.EncodeSourceFile(w.FilesById[id])
 	if err != nil {
 		panic(err)
 	}
@@ -199,8 +199,6 @@ func collectTypeCheckDiagnostics(ctx context.Context, program *compiler.Program,
 
 	if len(allDiagnostics) == configFileParsingDiagnosticsLength {
 		program.GetBindDiagnostics(ctx, nil)
-
-		allDiagnostics = append(allDiagnostics, program.GetOptionsDiagnostics(ctx)...)
 
 		if program.Options().ListFilesOnly.IsFalseOrUnknown() {
 			allDiagnostics = append(allDiagnostics, program.GetGlobalDiagnostics(ctx)...)
