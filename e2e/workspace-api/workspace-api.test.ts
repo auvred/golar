@@ -7,6 +7,7 @@ import {
 	cast,
 	isIdentifier,
 	isInterfaceDeclaration,
+	isPropertySignatureDeclaration,
 	isTypeAliasDeclaration,
 	isVariableStatement,
 	SyntaxKind,
@@ -30,8 +31,10 @@ test('getTypeAtLocation decodes intrinsic property types', async () => {
 	workspace.preloadRequestedFiles([indexFile])
 	const { file, program } = workspace.requestedFiles.get(indexFile)!
 	const userDecl = cast(file.statements[0], isInterfaceDeclaration)
-	const stringProperty = cast(userDecl.members[0]!.name!, isIdentifier)
-	const numberProperty = cast(userDecl.members[1]!.name!, isIdentifier)
+	const stringMember = cast(userDecl.members[0]!, isPropertySignatureDeclaration)
+	const numberMember = cast(userDecl.members[1]!, isPropertySignatureDeclaration)
+	const stringProperty = cast(stringMember.name, isIdentifier)
+	const numberProperty = cast(numberMember.name, isIdentifier)
 
 	expect(stringProperty.text).toBe('name')
 	expect(numberProperty.text).toBe('age')

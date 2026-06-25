@@ -2,6 +2,7 @@ import {
 	createParsedCommandLine,
 	forEachEmbeddedCode,
 } from '@vue/language-core'
+import * as languageCore from '@vue/language-core'
 import * as ts from './typescript-lite.js'
 import compilerDom from '@vue/compiler-dom'
 import { createParsedCommandLineByJson } from '@vue/language-core'
@@ -80,6 +81,7 @@ export function vueLanguagePlugin(
 			modules: {
 				typescript: ts,
 				'@vue/compiler-dom': compilerDom,
+				'@vue/language-core': languageCore,
 			},
 			compilerOptions,
 			vueCompilerOptions,
