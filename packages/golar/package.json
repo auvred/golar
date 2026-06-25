@@ -5,7 +5,9 @@
 	"engines": {
 		"node": ">=22.12.0"
 	},
-	"bin": "./src/bin.ts",
+	"bin": {
+		"golar": "./src/bin.ts"
+	},
 	"exports": {
 		"./unstable": "./src/unstable.ts",
 		"./unstable-tsgo": "./src/unstable-tsgo.ts"
@@ -24,7 +26,9 @@
 	"homepage": "https://golar.dev",
 	"publishConfig": {
 		"access": "public",
-		"bin": "./dist/bin.js",
+		"bin": {
+			"golar": "./dist/bin.js"
+		},
 		"exports": {
 			"./unstable": "./dist/unstable.js",
 			"./unstable-tsgo": "./dist/unstable-tsgo.js"
@@ -46,5 +50,8 @@
 		"@golar/linux-x64": "workspace:*",
 		"@golar/linux-x64-musl": "workspace:*",
 		"@golar/win32-x64": "workspace:*"
+	},
+	"inlinedDependencies": {
+		"valibot": "1.4.1"
 	}
 }

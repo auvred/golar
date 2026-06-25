@@ -27,8 +27,8 @@
 		}
 	},
 	"dependencies": {
-		"golar": "workspace:*",
 		"@golar/sourcemap": "workspace:*",
+		"golar": "workspace:*",
 		"svelte2tsx": "^0.7.46"
 	},
 	"peerDependencies": {

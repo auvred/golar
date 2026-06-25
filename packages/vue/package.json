@@ -30,14 +30,14 @@
 		}
 	},
 	"dependencies": {
-		"@golar/volar": "workspace:*",
 		"@golar/util": "workspace:*",
+		"@golar/volar": "workspace:*",
 		"@vue/compiler-dom": "^3.5.0",
 		"@vue/language-core": "3.2.5"
 	},
 	"devDependencies": {
 		"@vue/compiler-sfc": "^3.5.27",
-		"esbuild": "^0.27.2",
-		"typescript": "^5.9.3"
+		"esbuild": "^0.28.1",
+		"typescript": "^6.0.3"
 	}
 }

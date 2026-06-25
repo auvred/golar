@@ -1,5 +1,5 @@
 {
-	"packageManager": "pnpm@10.28.0",
+	"packageManager": "pnpm@11.9.0",
 	"type": "module",
 	"private": true,
 	"engines": {
@@ -14,14 +14,14 @@
 		"build:typescript-lite": "pnpm -C packages/vue build-typescript-lite"
 	},
 	"devDependencies": {
-		"@types/node": "^25.0.8",
+		"@types/node": "^25.9.4",
 		"detect-libc": "^2.1.2",
 		"golar": "workspace:*",
-		"nano-spawn": "^2.0.0",
-		"prettier": "^3.8.1",
-		"tar": "^7.5.13",
-		"tsdown": "^0.20.3",
-		"vitest": "^4.0.18",
-		"valibot": "^1.3.1"
+		"nano-spawn": "^2.1.0",
+		"prettier": "^3.8.4",
+		"tar": "^7.5.16",
+		"tsdown": "^0.22.3",
+		"valibot": "^1.4.1",
+		"vitest": "^4.1.9"
 	}
 }

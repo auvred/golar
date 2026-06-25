@@ -30,10 +30,10 @@
 		"golar": "workspace:*"
 	},
 	"optionalDependencies": {
-		"@golar/astro-win32-x64": "workspace:*",
-		"@golar/astro-linux-x64": "workspace:*",
-		"@golar/astro-linux-arm64": "workspace:*",
+		"@golar/astro-darwin-arm64": "workspace:*",
 		"@golar/astro-darwin-x64": "workspace:*",
-		"@golar/astro-darwin-arm64": "workspace:*"
+		"@golar/astro-linux-arm64": "workspace:*",
+		"@golar/astro-linux-x64": "workspace:*",
+		"@golar/astro-win32-x64": "workspace:*"
 	}
 }

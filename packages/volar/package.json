@@ -27,8 +27,8 @@
 		}
 	},
 	"dependencies": {
-		"golar": "workspace:*",
-		"@volar/language-core": "^2.4.28"
+		"@volar/language-core": "^2.4.28",
+		"golar": "workspace:*"
 	},
 	"devDependencies": {
 		"@volar/typescript": "^2.4.28"

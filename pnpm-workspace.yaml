@@ -15,5 +15,6 @@ packages:
   - packages/*
   - generated-packages/*
 
-patchedDependencies:
-  vitest: patches/vitest.patch
+allowBuilds:
+  esbuild: true
+  sharp: true
