@@ -1,0 +1,9 @@
+{
+	"exclude": ["./golar.config.ts"],
+	"compilerOptions": {
+		"types": []
+	},
+	"vueCompilerOptions": {
+		"plugins": ["@vue/language-plugin-pug"]
+	}
+}

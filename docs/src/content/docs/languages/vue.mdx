@@ -48,6 +48,26 @@ If you need declaration emit for Vue files, use [`tsc`](/modes/tsc/) mode:
 
 This emits `.vue.d.ts` files for Vue components.
 
+## Pug Templates
+
+Vue Language Tools supports `<template lang="pug">` through [`@vue/language-plugin-pug`](https://github.com/vuejs/language-tools/tree/master/packages/language-plugin-pug#readme).
+
+Install the Pug language plugin:
+
+<PackageManagers pkg="@vue/language-plugin-pug" dev />
+
+Then add it to `vueCompilerOptions.plugins` in `tsconfig.json`:
+
+```json ins={5}
+// tsconfig.json
+
+{
+	"vueCompilerOptions": {
+		"plugins": ["@vue/language-plugin-pug"]
+	}
+}
+```
+
 ## VitePress
 
 Vue Language Tools supports specifying VitePress file extensions via [`vitePressExtensions` in `tsconfig.json`](https://github.com/vuejs/language-tools/wiki/Vue-Compiler-Options#vitepressextensions-v2015).
