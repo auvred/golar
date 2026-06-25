@@ -27,7 +27,7 @@
 		}
 	},
 	"dependencies": {
-		"@glint/ember-tsc": "^1.1.1",
+		"@glint/ember-tsc": "1.8.1",
 		"@golar/util": "workspace:*",
 		"@golar/volar": "workspace:*"
 	}

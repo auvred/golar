@@ -29,7 +29,7 @@
 	"dependencies": {
 		"@golar/sourcemap": "workspace:*",
 		"golar": "workspace:*",
-		"svelte2tsx": "^0.7.46"
+		"svelte2tsx": "0.7.57"
 	},
 	"peerDependencies": {
 		"svelte": "^4.0.0 || ^5.0.0",
