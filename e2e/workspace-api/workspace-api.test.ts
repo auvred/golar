@@ -31,8 +31,14 @@ test('getTypeAtLocation decodes intrinsic property types', async () => {
 	workspace.preloadRequestedFiles([indexFile])
 	const { file, program } = workspace.requestedFiles.get(indexFile)!
 	const userDecl = cast(file.statements[0], isInterfaceDeclaration)
-	const stringMember = cast(userDecl.members[0]!, isPropertySignatureDeclaration)
-	const numberMember = cast(userDecl.members[1]!, isPropertySignatureDeclaration)
+	const stringMember = cast(
+		userDecl.members[0]!,
+		isPropertySignatureDeclaration,
+	)
+	const numberMember = cast(
+		userDecl.members[1]!,
+		isPropertySignatureDeclaration,
+	)
 	const stringProperty = cast(stringMember.name, isIdentifier)
 	const numberProperty = cast(numberMember.name, isIdentifier)
 
