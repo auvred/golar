@@ -2,7 +2,16 @@
 import path from 'node:path'
 import process from 'node:process'
 import child_process from 'node:child_process'
-import { golarAddonPath, isMusl } from './addon.ts'
+import { styleText } from './utils.ts'
+
+if (process.versions.webcontainer != null) {
+	console.error(
+		`${styleText('red', 'Error:')} Golar does not currently support running in a WebContainer`,
+	)
+	process.exit(1)
+}
+
+const { golarAddonPath, isMusl } = await import('./addon.ts')
 
 if (isMusl) {
 	const selfExtname = path.extname(import.meta.filename)
