@@ -47,6 +47,15 @@ export function loadAddon() {
 	if (addonLoaded) {
 		return
 	}
+	const signals = [
+		['SIGINT', 2],
+		['SIGTERM', 15],
+	] as const
+	for (const [sig, code] of signals) {
+		// exit directly to prevent recursive re-entry when Node re-raises the signal
+		process.once(sig, () => process.exit(128 + code))
+	}
+
 	addonLoaded = true
 	process.dlopen(
 		addonModule,
