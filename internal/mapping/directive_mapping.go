@@ -60,21 +60,30 @@ func (d *DirectiveMap) IsServiceRangeIgnored(serviceRange core.TextRange) bool {
 	}
 
 	for id, usage := range d.ExpectErrorMappings {
-		if usage.Used {
-			continue
-		}
+		matched := false
 		for _, mapping := range usage.ServiceMappings {
 			mappingRange := core.NewTextRange(
 				int(mapping.ServiceOffset),
 				int(mapping.ServiceOffset+mapping.ServiceLength),
 			)
 			if serviceRange.ContainedBy(mappingRange) {
-				result = true
+				matched = true
+				break
+			}
+		}
+		if matched {
+			result = true
+			// A `@vue-expect-error` region can cover several independent diagnostics
+			// (e.g. a component's props and its event-handler bodies). It must suppress
+			// all of them, not just the first, so ranges already marked used still
+			// suppress further diagnostics. `Used` only decides whether the directive
+			// is unused (TS2578), so the counter is incremented once per directive.
+			if !usage.Used {
 				usage.Used = true
 				d.Used++
 				d.ExpectErrorMappings[id] = usage
-				break
 			}
+			break
 		}
 	}
 
