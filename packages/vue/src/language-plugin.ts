@@ -25,8 +25,17 @@ class GolarVueVirtualCode extends VueVirtualCode {
 				const data = m.data as {
 					verification?: unknown
 					__suppressedDiagnostics?: number[]
+					__expectErrorCommentLoc?: [number, number]
 				}
 				if (data.__suppressedDiagnostics != null) {
+					continue
+				}
+				// Mappings covered by a `@vue-expect-error` directive are handled by the
+				// range-based expect-error mechanism (see `__expectErrorCommentLoc` in
+				// @golar/volar). Baking `__suppressedDiagnostics` here as well would drop the
+				// diagnostic before the directive can consume it, causing the directive to be
+				// reported as an unused `@ts-expect-error` (TS2578).
+				if ('__expectErrorCommentLoc' in data) {
 					continue
 				}
 				if (
