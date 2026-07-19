@@ -53,7 +53,16 @@ func (m *SourceMap) ToSourceRange(
 	serviceEnd uint32,
 	fallbackToAnyMatch bool,
 ) []MappedRange {
-	return m.findMatchingStartEnd(serviceStart, serviceEnd, fallbackToAnyMatch, ServiceOffsets)
+	return m.findMatchingStartEnd(serviceStart, serviceEnd, fallbackToAnyMatch, ServiceOffsets, nil)
+}
+
+func (m *SourceMap) ToSourceRangeFiltered(
+	serviceStart uint32,
+	serviceEnd uint32,
+	fallbackToAnyMatch bool,
+	filter func(*Mapping) bool,
+) []MappedRange {
+	return m.findMatchingStartEnd(serviceStart, serviceEnd, fallbackToAnyMatch, ServiceOffsets, filter)
 }
 
 func (m *SourceMap) AnySourceRangeMatch(
@@ -63,7 +72,7 @@ func (m *SourceMap) AnySourceRangeMatch(
 	filter func(*Mapping) bool,
 ) bool {
 	if filter == nil {
-		return len(m.findMatchingStartEnd(serviceStart, serviceEnd, fallbackToAnyMatch, ServiceOffsets)) > 0
+		return len(m.findMatchingStartEnd(serviceStart, serviceEnd, fallbackToAnyMatch, ServiceOffsets, nil)) > 0
 	}
 
 	mappedStarts := make([]MappedLocation, 0)
@@ -110,7 +119,7 @@ func (m *SourceMap) ToServiceRange(
 	sourceEnd uint32,
 	fallbackToAnyMatch bool,
 ) []MappedRange {
-	return m.findMatchingStartEnd(sourceStart, sourceEnd, fallbackToAnyMatch, SourceOffsets)
+	return m.findMatchingStartEnd(sourceStart, sourceEnd, fallbackToAnyMatch, SourceOffsets, nil)
 }
 
 func (m *SourceMap) ToSourceLocation(serviceOffset uint32) []MappedLocation {
@@ -164,6 +173,7 @@ func (m *SourceMap) findMatchingStartEnd(
 	end uint32,
 	fallbackToAnyMatch bool,
 	fromRange CodeRangeKey,
+	filter func(*Mapping) bool,
 ) []MappedRange {
 	toRange := otherRangeKey(fromRange)
 	mappedStarts := make([]MappedLocation, 0)
@@ -171,6 +181,9 @@ func (m *SourceMap) findMatchingStartEnd(
 	hadMatch := false
 
 	for _, mappedStart := range m.findMatchingOffsets(start, fromRange) {
+		if filter != nil && !filter(mappedStart.Mapping) {
+			continue
+		}
 		mappedStarts = append(mappedStarts, mappedStart)
 		mapping := mappedStart.Mapping
 		mappedEnd, ok := TranslateOffset(
@@ -196,6 +209,9 @@ func (m *SourceMap) findMatchingStartEnd(
 		for _, mappedStart := range mappedStarts {
 			for _, mappedEnd := range endMatches {
 				if mappedEnd.Offset < mappedStart.Offset {
+					continue
+				}
+				if filter != nil && !filter(mappedEnd.Mapping) {
 					continue
 				}
 				results = append(results, MappedRange{

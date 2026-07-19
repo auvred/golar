@@ -104,14 +104,13 @@ export function createVolarPlugin(opts: CreateVolarPluginOptions) {
 				)
 				const sourceOffsets = new Set<number>()
 				const serviceOffsets = new Set<number>()
-				const expectErrorGroups = new Map<
-					string,
-					{
-						sourceOffset: number
-						sourceLength: number
-						serviceRanges: [number, number][]
-					}
-				>()
+				type ExpectErrorGroup = {
+					sourceOffset: number
+					sourceLength: number
+					serviceRanges: [number, number][]
+				}
+				const expectErrorGroups: ExpectErrorGroup[] = []
+				let currentExpectErrorGroup: ExpectErrorGroup | undefined
 
 				for (const m of verificationMappings) {
 					for (const [i, offset] of m.sourceOffsets.entries()) {
@@ -137,12 +136,31 @@ export function createVolarPlugin(opts: CreateVolarPluginOptions) {
 				const mappings = verificationMappings.flatMap((m): CodegenMapping[] => {
 					const mappingData = m.data as {
 						__suppressedDiagnostics?: number[]
+						__expectErrorCommentLoc?: [number, number]
 					}
 					const suppressedDiagnostics = Array.isArray(
 						mappingData.__suppressedDiagnostics,
 					)
 						? mappingData.__suppressedDiagnostics
 						: undefined
+					if ('__expectErrorCommentLoc' in mappingData) {
+						const [start, end] = mappingData.__expectErrorCommentLoc!
+						const sourceLength = end - start
+						if (
+							currentExpectErrorGroup == null ||
+							currentExpectErrorGroup.sourceOffset !== start ||
+							currentExpectErrorGroup.sourceLength !== sourceLength
+						) {
+							currentExpectErrorGroup = {
+								sourceOffset: start,
+								sourceLength,
+								serviceRanges: [],
+							}
+							expectErrorGroups.push(currentExpectErrorGroup)
+						}
+					} else {
+						currentExpectErrorGroup = undefined
+					}
 					return m.sourceOffsets.map((sourceOffset, i): CodegenMapping => {
 						const generatedOffset = m.generatedOffsets[i]!
 						const sourceLength = m.lengths[i]!
@@ -154,23 +172,8 @@ export function createVolarPlugin(opts: CreateVolarPluginOptions) {
 							])
 						}
 
-						if ('__expectErrorCommentLoc' in m.data) {
-							const [start, end] = m.data.__expectErrorCommentLoc as [
-								number,
-								number,
-							]
-							const sourceLength = end - start
-							const key = `${start}:${sourceLength}`
-							let group = expectErrorGroups.get(key)
-							if (group == null) {
-								group = {
-									sourceOffset: start,
-									sourceLength,
-									serviceRanges: [],
-								}
-								expectErrorGroups.set(key, group)
-							}
-							group.serviceRanges.push([
+						if (currentExpectErrorGroup != null) {
+							currentExpectErrorGroup.serviceRanges.push([
 								generatedOffset,
 								generatedOffset + generatedLength,
 							])
@@ -220,7 +223,7 @@ export function createVolarPlugin(opts: CreateVolarPluginOptions) {
 					serviceLength: serviceText.length - cursor,
 				})
 
-				for (const group of expectErrorGroups.values()) {
+				for (const group of expectErrorGroups) {
 					if (group.serviceRanges.length === 0) {
 						continue
 					}

@@ -6,9 +6,6 @@ import (
 	"github.com/microsoft/typescript-go/pkg/core"
 )
 
-// A single `@vue-expect-error` region can cover several independent diagnostics
-// (e.g. a component's props and its event-handler bodies). All of them must be
-// suppressed, not just the first one encountered.
 func TestExpectErrorSuppressesMultipleDiagnosticsInRegion(t *testing.T) {
 	dm := NewDirectiveMap(nil, []ExpectErrorDirectiveMapping{
 		{SourceOffset: 0, SourceLength: 10, ServiceOffset: 100, ServiceLength: 100},
@@ -28,7 +25,6 @@ func TestExpectErrorSuppressesMultipleDiagnosticsInRegion(t *testing.T) {
 	}
 }
 
-// A directive that covers no diagnostics must still be reported as unused (TS2578).
 func TestExpectErrorReportedUnusedWhenRegionHasNoDiagnostic(t *testing.T) {
 	dm := NewDirectiveMap(nil, []ExpectErrorDirectiveMapping{
 		{SourceOffset: 0, SourceLength: 10, ServiceOffset: 100, ServiceLength: 100},
@@ -39,5 +35,80 @@ func TestExpectErrorReportedUnusedWhenRegionHasNoDiagnostic(t *testing.T) {
 	}
 	if unused := dm.CollectUnused(); len(unused) != 1 {
 		t.Fatalf("directive matched nothing, expected 1 unused, got %d", len(unused))
+	}
+}
+
+func TestIgnoredRangeDoesNotConsumeExpectError(t *testing.T) {
+	dm := NewDirectiveMap(
+		[]IgnoreDirectiveMapping{{ServiceOffset: 100, ServiceLength: 100}},
+		[]ExpectErrorDirectiveMapping{{SourceOffset: 0, SourceLength: 10, ServiceOffset: 100, ServiceLength: 100}},
+	)
+
+	if !dm.IsServiceRangeIgnored(core.NewTextRange(110, 120)) {
+		t.Fatal("diagnostic in an ignored generated range should be suppressed")
+	}
+	if unused := dm.CollectUnused(); len(unused) != 1 {
+		t.Fatalf("ignored diagnostic should not consume the directive, expected 1 unused, got %d", len(unused))
+	}
+}
+
+func TestMostSpecificExpectErrorOwnsOverlappingDiagnostic(t *testing.T) {
+	outer := core.NewTextRange(0, 10)
+	dm := NewDirectiveMap(nil, []ExpectErrorDirectiveMapping{
+		{SourceOffset: 0, SourceLength: 10, ServiceOffset: 100, ServiceLength: 100},
+		{SourceOffset: 20, SourceLength: 10, ServiceOffset: 125, ServiceLength: 20},
+	})
+
+	if !dm.IsServiceRangeIgnored(core.NewTextRange(130, 135)) {
+		t.Fatal("diagnostic in overlapping directive regions should be suppressed")
+	}
+	unused := dm.CollectUnused()
+	if len(unused) != 1 || unused[0] != outer {
+		t.Fatalf("inner directive should own the diagnostic, expected only outer directive unused, got %v", unused)
+	}
+}
+
+func TestUsedInnerExpectErrorMarkerDoesNotConsumeOuter(t *testing.T) {
+	outer := core.NewTextRange(0, 10)
+	inner := core.NewTextRange(20, 30)
+	dm := NewDirectiveMap(nil, []ExpectErrorDirectiveMapping{
+		{SourceOffset: 0, SourceLength: 10, ServiceOffset: 200, ServiceLength: 20},
+		{SourceOffset: 20, SourceLength: 10, ServiceOffset: 100, ServiceLength: 20},
+	})
+
+	dm.IsServiceRangeIgnored(core.NewTextRange(105, 110))
+	dm.ProcessExpectErrorMarker(inner, core.NewTextRange(205, 210))
+
+	unused := dm.CollectUnused()
+	if len(unused) != 1 || unused[0] != outer {
+		t.Fatalf("used inner marker should not consume outer directive, expected only outer unused, got %v", unused)
+	}
+}
+
+func TestUnusedInnerExpectErrorMarkerConsumesOuter(t *testing.T) {
+	inner := core.NewTextRange(20, 30)
+	dm := NewDirectiveMap(nil, []ExpectErrorDirectiveMapping{
+		{SourceOffset: 0, SourceLength: 10, ServiceOffset: 200, ServiceLength: 20},
+		{SourceOffset: 20, SourceLength: 10, ServiceOffset: 100, ServiceLength: 20},
+	})
+
+	dm.ProcessExpectErrorMarker(inner, core.NewTextRange(205, 210))
+
+	if unused := dm.CollectUnused(); len(unused) != 0 {
+		t.Fatalf("unused inner marker should be suppressed by and consume outer directive, got %v", unused)
+	}
+}
+
+func TestTopLevelExpectErrorMarkerRemainsUnused(t *testing.T) {
+	owner := core.NewTextRange(0, 10)
+	dm := NewDirectiveMap(nil, []ExpectErrorDirectiveMapping{
+		{SourceOffset: 0, SourceLength: 10, ServiceOffset: 100, ServiceLength: 20},
+	})
+
+	dm.ProcessExpectErrorMarker(owner, core.NewTextRange(200, 210))
+
+	unused := dm.CollectUnused()
+	if len(unused) != 1 || unused[0] != owner {
+		t.Fatalf("top-level marker should leave its directive unused, got %v", unused)
 	}
 }

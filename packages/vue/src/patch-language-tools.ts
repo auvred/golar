@@ -32,11 +32,13 @@ patchFile('@vue/language-core/lib/codegen/template/context.js', (src) => {
 		src,
 		'function resolveCodeFeatures',
 		(s) => `${s}(...args) {
+		const originalVerification = args[0]?.verification
 		let features = _resolveCodeFeatures(...args)
 		const data = stack.at(-1)
 		if (data?.expectError != null) {
 			features = {
 				...features,
+				__expectErrorOriginalVerification: originalVerification,
 				__expectErrorCommentLoc: [
 					(options?.template?.startTagEnd ?? 0) + data.expectError.node.loc.start.offset,
 					(options?.template?.startTagEnd ?? 0) + data.expectError.node.loc.end.offset,
@@ -47,6 +49,11 @@ patchFile('@vue/language-core/lib/codegen/template/context.js', (src) => {
 	}
 
 	function _resolveCodeFeatures`,
+	)
+	src = replaceOrThrow(
+		src,
+		/shouldReport: \(\) => data\.expectError\.token === 0,\n(\s*)},/,
+		(s, indent) => `${s}\n${indent}__expectErrorMarker: true,`,
 	)
 
 	return src
