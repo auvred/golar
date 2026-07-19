@@ -24,21 +24,31 @@ class GolarVueVirtualCode extends VueVirtualCode {
 			for (const m of code.mappings) {
 				const data = m.data as {
 					verification?: unknown
+					__expectErrorOriginalVerification?: unknown
+					__expectErrorMarker?: true
 					__suppressedDiagnostics?: number[]
+				}
+				if (data.__expectErrorMarker) {
+					data.__suppressedDiagnostics = [2578]
+					continue
 				}
 				if (data.__suppressedDiagnostics != null) {
 					continue
 				}
+				const verification =
+					'__expectErrorOriginalVerification' in data
+						? data.__expectErrorOriginalVerification
+						: data.verification
 				if (
-					data.verification == null ||
-					typeof data.verification !== 'object' ||
-					!('shouldReport' in data.verification) ||
-					typeof data.verification.shouldReport !== 'function'
+					verification == null ||
+					typeof verification !== 'object' ||
+					!('shouldReport' in verification) ||
+					typeof verification.shouldReport !== 'function'
 				) {
 					continue
 				}
 
-				const shouldReport = data.verification.shouldReport as (
+				const shouldReport = verification.shouldReport as (
 					source: string | undefined,
 					code: string | number,
 				) => boolean

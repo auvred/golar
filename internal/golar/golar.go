@@ -210,13 +210,38 @@ func adjustDiagnostic(file *ast.SourceFile, diagnostic *ast.Diagnostic, dropUnma
 }
 
 func wrapDiagnostics(file *ast.SourceFile, diags []*ast.Diagnostic, collectUnused bool, dropUnmatched bool) []*ast.Diagnostic {
+	type expectErrorMarker struct {
+		ownerRange   core.TextRange
+		serviceRange core.TextRange
+	}
+
 	res := []*ast.Diagnostic{}
 	if file.GolarLanguageData == nil {
 		return nil
 	}
 	langData := file.GolarLanguageData.(languageData)
 	directiveMap := mapping.NewDirectiveMap(langData.ignoreDirectives, langData.expectErrorDirectives)
+	markers := []expectErrorMarker{}
+
+Diagnostics:
 	for _, diag := range diags {
+		if diag.Code() == 2578 {
+			markerRanges := langData.sourceMap.ToSourceRangeFiltered(
+				uint32(diag.Pos()),
+				uint32(diag.End()),
+				true,
+				func(m *mapping.Mapping) bool {
+					return slices.Contains(m.SuppressedDiagnostics, uint32(2578))
+				},
+			)
+			for _, sourceRange := range markerRanges {
+				markers = append(markers, expectErrorMarker{
+					ownerRange:   core.NewTextRange(int(sourceRange.MappedStart), int(sourceRange.MappedEnd)),
+					serviceRange: diag.Loc(),
+				})
+				continue Diagnostics
+			}
+		}
 		if langData.sourceMap.AnySourceRangeMatch(
 			uint32(diag.Pos()),
 			uint32(diag.End()),
@@ -234,6 +259,15 @@ func wrapDiagnostics(file *ast.SourceFile, diags []*ast.Diagnostic, collectUnuse
 		if adjusted != nil {
 			res = append(res, adjusted)
 		}
+	}
+	slices.SortFunc(markers, func(a, b expectErrorMarker) int {
+		if diff := a.serviceRange.Pos() - b.serviceRange.Pos(); diff != 0 {
+			return diff
+		}
+		return a.serviceRange.End() - b.serviceRange.End()
+	})
+	for _, marker := range markers {
+		directiveMap.ProcessExpectErrorMarker(marker.ownerRange, marker.serviceRange)
 	}
 	if !collectUnused {
 		return res
