@@ -1,6 +1,6 @@
 [package]
 name = "golar"
-version = "0.1.9"
+version = "0.1.10"
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
