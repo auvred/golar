@@ -18,7 +18,7 @@ const release = args.includes('release')
 const putToBin = args.includes('put-to-bin')
 
 const goDebug = debug ? ['-gcflags', 'all=-N -l'] : []
-const goRelease = release ? ['-trimpath'] : []
+const goRelease = release ? ['-ldflags', '-s -w', '-trimpath'] : []
 
 const libc =
 	process.env.GOLAR_LIBC === 'musl' || (await libcFamily()) === MUSL
