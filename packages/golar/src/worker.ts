@@ -4,6 +4,7 @@ import worker_threads from 'node:worker_threads'
 import { loadConfig, resolveConfig } from './config.ts'
 import { globalState, JsCodegenPlugin } from './codegen-plugin.ts'
 import { Workspace } from './workspace.ts'
+import { loadAddon } from './addon.ts'
 
 export type WorkspaceMeta = {
 	pointerLo: number
@@ -38,6 +39,9 @@ if (env.mode === 'codegen-only') {
 	}
 	parentPort.postMessage('done')
 } else if (env.mode === 'lint') {
+	// JS rules call into the addon from this thread even when no JS codegen
+	// plugin is registered (registering one is what loads it otherwise).
+	loadAddon()
 	for (const plugin of globalState.codegenPlugins.values()) {
 		// only js plugins must be registered from worker threads
 		if (plugin instanceof JsCodegenPlugin) {

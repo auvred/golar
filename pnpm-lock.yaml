@@ -87,6 +87,12 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/ember
 
+  e2e/js-rule-worker-threads/fixture:
+    dependencies:
+      golar:
+        specifier: workspace:*
+        version: link:../../../packages/golar
+
   e2e/lint-typecheck/fixture:
     dependencies:
       '@golar/vue':
