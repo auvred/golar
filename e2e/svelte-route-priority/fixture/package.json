@@ -1,0 +1,8 @@
+{
+	"type": "module",
+	"dependencies": {
+		"@golar/svelte": "workspace:*",
+		"golar": "workspace:*",
+		"svelte": "^5.53.6"
+	}
+}

@@ -1,4 +1,4 @@
-From 179cc9c9dfd82586544c580016de0c75b66b37af Mon Sep 17 00:00:00 2001
+From 904182e0fb3aea17e9c1ca07bcf0f222d39ffbc2 Mon Sep 17 00:00:00 2001
 From: auvred <aauvred@gmail.com>
 Date: Mon, 9 Mar 2026 10:37:15 +0300
 Subject: [PATCH 3/3] More extensions
@@ -245,10 +245,10 @@ index 0f2493a5c2..40057b195d 100644
  						return resolved
  					}
 diff --git a/tsc/pkg/tspath/extension.go b/tsc/pkg/tspath/extension.go
-index 4916906858..e8f2af59d0 100644
+index 23067810be..06201b49b4 100644
 --- a/tsc/pkg/tspath/extension.go
 +++ b/tsc/pkg/tspath/extension.go
-@@ -61,6 +61,7 @@ var extensionsToRemove = []string{ExtensionDts, ExtensionDmts, ExtensionDcts, Ex
+@@ -64,6 +64,7 @@ var extensionsToRemove = []string{ExtensionDts, ExtensionDmts, ExtensionDcts, Ex
  func RegisterExtensionToRemove(ext string) {
  	extensionsToRemove = append(extensionsToRemove, ext)
  }

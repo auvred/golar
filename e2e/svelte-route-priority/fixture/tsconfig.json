@@ -1,0 +1,11 @@
+{
+	"include": ["src"],
+	"compilerOptions": {
+		"strict": true,
+		"skipLibCheck": true,
+		"types": [],
+		"paths": {
+			"$lib/*": ["./src/lib/*"]
+		}
+	}
+}
