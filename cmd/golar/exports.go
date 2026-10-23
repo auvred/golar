@@ -210,8 +210,11 @@ func golar_js_workspace_Report(threadId C.uint32_t) {
 	offset += 4
 	message := buf.readString(offset, messageLen)
 
-	castWorkspace(workspacePtr).ReportRequestedFile(fileIdx, ruleName, rule.Report{
-		Range:   core.NewTextRange(int(start), int(end)),
+	// JS nodes carry UTF-16 positions, the Go AST uses UTF-8 ones.
+	w := castWorkspace(workspacePtr)
+	positions := w.RequestedFiles[fileIdx].SourceFile.GetPositionMap()
+	w.ReportRequestedFile(fileIdx, ruleName, rule.Report{
+		Range:   core.NewTextRange(positions.UTF16ToUTF8(int(start)), positions.UTF16ToUTF8(int(end))),
 		Message: message,
 	})
 }

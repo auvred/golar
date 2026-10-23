@@ -2,6 +2,7 @@ import type { LintConfiguredRule } from './config.ts'
 import type { SourceFile } from './unstable-tsgo.ts'
 import type { Program } from './workspace.ts'
 
+/** UTF-16 offsets, like `node.pos` and `node.end` */
 export interface CharacterReportRange {
 	/** 0-indexed */
 	begin: number
