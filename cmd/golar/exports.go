@@ -202,6 +202,8 @@ func golar_js_workspace_Report(threadId C.uint32_t) {
 	offset += 4
 	end := binary.LittleEndian.Uint32(buf[offset:])
 	offset += 4
+	isSourceRange := buf[offset] != 0
+	offset += 1
 	ruleNameLen := binary.LittleEndian.Uint32(buf[offset:])
 	offset += 4
 	ruleName := buf.readString(offset, ruleNameLen)
@@ -210,10 +212,16 @@ func golar_js_workspace_Report(threadId C.uint32_t) {
 	offset += 4
 	message := buf.readString(offset, messageLen)
 
-	castWorkspace(workspacePtr).ReportRequestedFile(fileIdx, ruleName, rule.Report{
+	w := castWorkspace(workspacePtr)
+	report := rule.Report{
 		Range:   core.NewTextRange(int(start), int(end)),
 		Message: message,
-	})
+	}
+	if isSourceRange {
+		w.ReportRequestedFileSourceRange(fileIdx, ruleName, report)
+		return
+	}
+	w.ReportRequestedFile(fileIdx, ruleName, report)
 }
 
 //export golar_js_tsc

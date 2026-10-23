@@ -11,6 +11,7 @@ import (
 	"github.com/auvred/golar/internal/linter"
 	"github.com/auvred/golar/internal/linter/rule"
 	"github.com/microsoft/TypeScript/tsc/pkg/ast"
+	"github.com/microsoft/TypeScript/tsc/pkg/core"
 	"github.com/microsoft/TypeScript/tsc/pkg/scanner"
 	"github.com/microsoft/TypeScript/tsc/pkg/tspath"
 )
@@ -50,8 +51,10 @@ func (w *Workspace) report(file *ast.SourceFile, ruleName string, report rule.Re
 		return
 	}
 	report.Range = mapped
-	reportFile := golar.ReportingSourceFile(file)
+	w.print(golar.ReportingSourceFile(file), ruleName, report)
+}
 
+func (w *Workspace) print(reportFile *ast.SourceFile, ruleName string, report rule.Report) {
 	line, column := scanner.GetECMALineAndUTF16CharacterOfPosition(reportFile, report.Range.Pos())
 	prefix := w.reportFileName(reportFile) + ":" + strconv.Itoa(line+1) + ":" + strconv.Itoa(int(column)+1) + ": " + ruleName + ": "
 	indent := strings.Repeat(" ", len(prefix))
@@ -76,6 +79,15 @@ func (w *Workspace) report(file *ast.SourceFile, ruleName string, report rule.Re
 
 func (w *Workspace) ReportRequestedFile(fileIdx uint32, ruleName string, report rule.Report) {
 	w.report(w.RequestedFiles[fileIdx].SourceFile, ruleName, report)
+}
+
+// ReportRequestedFileSourceRange reports a range of the original file text,
+// in UTF-16 offsets, without mapping it from service code.
+func (w *Workspace) ReportRequestedFileSourceRange(fileIdx uint32, ruleName string, report rule.Report) {
+	reportFile := golar.ReportingSourceFile(w.RequestedFiles[fileIdx].SourceFile)
+	positions := reportFile.GetPositionMap()
+	report.Range = core.NewTextRange(positions.UTF16ToUTF8(report.Range.Pos()), positions.UTF16ToUTF8(report.Range.End()))
+	w.print(reportFile, ruleName, report)
 }
 
 func (w *Workspace) Lint(configRaw []byte) {

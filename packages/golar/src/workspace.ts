@@ -17,6 +17,7 @@ import { Registry, Type, type NodeHandle } from './type-decoder.ts'
 import * as v from 'valibot'
 import { addon, golarAddonPath, syncBuf, syncView } from './addon.ts'
 import type { LintConfiguredRule } from './config.ts'
+import type { RuleReport } from './lint.ts'
 
 export type SourceFileWithProgram = {
 	file: SourceFile
@@ -381,21 +382,18 @@ export class Workspace implements Disposable {
 				configuredRule.rule.setup({
 					program: file.program,
 					sourceFile: file.file,
-					report(report: {
-						message: string
-						range: {
-							begin: number
-							end: number
-						}
-					}) {
+					report(report: RuleReport) {
+						const range = report.sourceRange ?? report.range
 						let offset = 0
 						offset = workspace.writePointer(offset)
 						syncView.setUint32(offset, fileIdx, true)
 						offset += 4
-						syncView.setUint32(offset, report.range.begin, true)
+						syncView.setUint32(offset, range.begin, true)
 						offset += 4
-						syncView.setUint32(offset, report.range.end, true)
+						syncView.setUint32(offset, range.end, true)
 						offset += 4
+						syncView.setUint8(offset, report.sourceRange != null ? 1 : 0)
+						offset += 1
 
 						const { written: ruleNameLength } = textEncoder.encodeInto(
 							configuredRule.rule.name,

@@ -9,10 +9,22 @@ export interface CharacterReportRange {
 	end: number
 }
 
-export type RuleReport = {
-	range: CharacterReportRange
-	message: string
-}
+export type RuleReport =
+	| {
+			/** Range in `context.sourceFile`, the service code rules visit */
+			range: CharacterReportRange
+			sourceRange?: never
+			message: string
+	  }
+	| {
+			/**
+			 * Range in the original file text (as read from disk), for text the
+			 * service code does not contain, like a Svelte `class:name` directive
+			 */
+			sourceRange: CharacterReportRange
+			range?: never
+			message: string
+	  }
 
 export type RuleContext = {
 	program: Program
