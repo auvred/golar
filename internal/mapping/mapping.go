@@ -130,6 +130,40 @@ func (m *SourceMap) ToServiceLocation(sourceOffset uint32) []MappedLocation {
 	return m.findMatchingOffsets(sourceOffset, SourceOffsets)
 }
 
+// ToNearestSourceOffset maps a service offset to the source. An offset in
+// generated code that no mapping covers maps to the source end of the closest
+// mapping before it, the way a source map's greatest-lower-bound lookup does,
+// or to the source start of the first mapping when none comes before it.
+// It reports false only when there are no mappings at all.
+func (m *SourceMap) ToNearestSourceOffset(serviceOffset uint32) (uint32, bool) {
+	for _, location := range m.findMatchingOffsets(serviceOffset, ServiceOffsets) {
+		return location.Offset, true
+	}
+
+	var before, after *Mapping
+	for i := range m.Mappings {
+		mapping := &m.Mappings[i]
+		serviceEnd := mapping.ServiceOffset + getLength(mapping, ServiceOffsets)
+		if serviceEnd <= serviceOffset {
+			if before == nil || serviceEnd > before.ServiceOffset+getLength(before, ServiceOffsets) {
+				before = mapping
+			}
+		} else if mapping.ServiceOffset > serviceOffset {
+			if after == nil || mapping.ServiceOffset < after.ServiceOffset {
+				after = mapping
+			}
+		}
+	}
+
+	if before != nil {
+		return before.SourceOffset + before.SourceLength, true
+	}
+	if after != nil {
+		return after.SourceOffset, true
+	}
+	return 0, false
+}
+
 func (m *SourceMap) findMatchingOffsets(
 	offset uint32,
 	fromRange CodeRangeKey,

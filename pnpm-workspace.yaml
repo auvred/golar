@@ -6,6 +6,7 @@ packages:
   - e2e/node-id-collision/fixture
   - e2e/service-code-error/fixture
   - e2e/signal-exit-check/fixture
+  - e2e/svelte-unmapped-diagnostic/fixture
   - e2e/typecheck-gitignore/fixture
   - e2e/typecheck-implicit-files/fixture
   - e2e/vue-emit/fixture

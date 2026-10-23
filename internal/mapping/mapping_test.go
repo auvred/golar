@@ -508,3 +508,40 @@ func TestSourceMapRangesFallbackOrderIsDeterministic(t *testing.T) {
 		}
 	}
 }
+
+func TestToNearestSourceOffset(t *testing.T) {
+	// source:  <div bind:offsetHeight={h} />
+	// service: h= $$_div0.offsetHeight;
+	sourceMap := NewSourceMap([]Mapping{
+		{SourceOffset: 24, ServiceOffset: 0, SourceLength: 1},
+	})
+	cases := []struct {
+		name    string
+		offset  uint32
+		want    uint32
+		wantOk  bool
+		mapping *SourceMap
+	}{
+		{name: "mapped offset", offset: 0, want: 24, wantOk: true, mapping: sourceMap},
+		{name: "generated code after a mapping", offset: 11, want: 25, wantOk: true, mapping: sourceMap},
+		{
+			name:   "generated code before the first mapping",
+			offset: 2,
+			want:   10,
+			wantOk: true,
+			mapping: NewSourceMap([]Mapping{
+				{SourceOffset: 10, ServiceOffset: 5, SourceLength: 3},
+			}),
+		},
+		{name: "no mappings", offset: 3, want: 0, wantOk: false, mapping: NewSourceMap(nil)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := tc.mapping.ToNearestSourceOffset(tc.offset)
+			if got != tc.want || ok != tc.wantOk {
+				t.Fatalf("ToNearestSourceOffset(%d) = (%d, %v), want (%d, %v)", tc.offset, got, ok, tc.want, tc.wantOk)
+			}
+		})
+	}
+}

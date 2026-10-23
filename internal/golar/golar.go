@@ -182,6 +182,12 @@ func adjustDiagnostic(file *ast.SourceFile, diagnostic *ast.Diagnostic, dropUnma
 		return diagnostic
 	}
 	langData := file.GolarLanguageData.(languageData)
+	// Locations in generated code go to the closest source position, not to
+	// the start of the file.
+	nearest := func(pos int) core.TextRange {
+		start, _ := langData.sourceMap.ToNearestSourceOffset(uint32(pos))
+		return core.NewTextRange(int(start), int(start))
+	}
 	for _, sourceRange := range langData.sourceMap.ToSourceRange(uint32(diagnostic.Pos()), uint32(diagnostic.End()), true) {
 		diagnostic.SetLocation(core.NewTextRange(int(sourceRange.MappedStart), int(sourceRange.MappedEnd)))
 	MessageChain:
@@ -190,7 +196,7 @@ func adjustDiagnostic(file *ast.SourceFile, diagnostic *ast.Diagnostic, dropUnma
 				d.SetLocation(core.NewTextRange(int(sourceRange.MappedStart), int(sourceRange.MappedEnd)))
 				continue MessageChain
 			}
-			d.SetLocation(core.NewTextRange(0, 0))
+			d.SetLocation(nearest(d.Pos()))
 		}
 	RelatedInformation:
 		for _, d := range diagnostic.RelatedInformation() {
@@ -198,7 +204,7 @@ func adjustDiagnostic(file *ast.SourceFile, diagnostic *ast.Diagnostic, dropUnma
 				d.SetLocation(core.NewTextRange(int(sourceRange.MappedStart), int(sourceRange.MappedEnd)))
 				continue RelatedInformation
 			}
-			d.SetLocation(core.NewTextRange(0, 0))
+			d.SetLocation(nearest(d.Pos()))
 		}
 		return diagnostic
 	}
@@ -207,7 +213,7 @@ func adjustDiagnostic(file *ast.SourceFile, diagnostic *ast.Diagnostic, dropUnma
 		return nil
 	}
 
-	diagnostic.SetLocation(core.NewTextRange(0, 0))
+	diagnostic.SetLocation(nearest(diagnostic.Pos()))
 
 	return diagnostic
 }
