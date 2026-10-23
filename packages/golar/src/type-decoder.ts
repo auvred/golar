@@ -246,6 +246,10 @@ export class Type {
 			const [target, targetLen] = registry.getType(data, childOffset)
 			this.target = target
 			childOffset += targetLen
+		} else if ((this.flags & TypeFlags.TypeParameter) !== 0) {
+			const [constraint, constraintLen] = registry.getType(data, childOffset)
+			this.constraint = constraint
+			childOffset += constraintLen
 		}
 
 		this.len = childOffset - offset

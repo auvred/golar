@@ -36,6 +36,9 @@ func init() {
 }
 
 type Encoder struct {
+	// checker resolves lazily computed type data, such as type parameter
+	// constraints. It must be the checker the encoded types come from.
+	checker     *checker.Checker
 	seenTypes   []uint64
 	seenSymbols []uint64
 	// Compact wire IDs are independent of upstream's block-allocated 64-bit IDs.
@@ -54,8 +57,8 @@ const supportedLiteralFlags = checker.TypeFlagsStringLiteral |
 	checker.TypeFlagsBooleanLiteral |
 	checker.TypeFlagsBigIntLiteral
 
-func New() *Encoder {
-	return &Encoder{symbolIDs: make(map[ast.SymbolId]uint32)}
+func New(c *checker.Checker) *Encoder {
+	return &Encoder{checker: c, symbolIDs: make(map[ast.SymbolId]uint32)}
 }
 
 func (e *Encoder) Reset() {
@@ -103,6 +106,8 @@ func (e *Encoder) EncodeType(buf []byte, t *checker.Type) []byte {
 		buf = e.appendTypes(buf, t.AsTemplateLiteralType().Types())
 	case t.Flags()&checker.TypeFlagsStringMapping != 0:
 		buf = e.EncodeType(buf, t.AsStringMappingType().Target())
+	case t.Flags()&checker.TypeFlagsTypeParameter != 0:
+		buf = e.EncodeType(buf, e.checker.GetConstraintOfTypeParameter(t))
 	}
 
 	return buf

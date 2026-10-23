@@ -45,7 +45,7 @@ func (p *program) encoderForThread(threadId uint32) *typeencoder.Encoder {
 		return encoder
 	}
 
-	encoder = typeencoder.New()
+	encoder = typeencoder.New(p.checker)
 	p.encoders[threadId] = encoder
 	return encoder
 }

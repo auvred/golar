@@ -245,6 +245,33 @@ test('getTypeAtLocation decodes advanced type relationships', async () => {
 	expect(stringMappingType.target!.flags & TypeFlags.TypeParameter).toBeTruthy()
 })
 
+test('getTypeAtLocation decodes type parameters', async () => {
+	const workspace = await (
+		await Workspace.create(fixtureDir, [typesFile])
+	).workspace
+	workspace.preloadRequestedFiles([typesFile])
+	const { file, program } = workspace.requestedFiles.get(typesFile)!
+
+	// type Upper<T extends string> = Uppercase<T>
+	const upper = cast(file.statements[11], isTypeAliasDeclaration)
+	const constrained = program.getTypeAtLocation(upper.typeParameters![0]!.name)!
+	expect(constrained.flags & TypeFlags.TypeParameter).toBeTruthy()
+	expect(constrained.constraint).toBeDefined()
+	expect(constrained.constraint!.intrinsicName).toBe('string')
+	expect(constrained.symbol!.declarations).toHaveLength(1)
+	expect(constrained.symbol!.declarations[0]!.kind).toBe(
+		SyntaxKind.TypeParameter,
+	)
+
+	// type KeyOf<T> = keyof T
+	const keyOf = cast(file.statements[7], isTypeAliasDeclaration)
+	const unconstrained = program.getTypeAtLocation(
+		keyOf.typeParameters![0]!.name,
+	)!
+	expect(unconstrained.flags & TypeFlags.TypeParameter).toBeTruthy()
+	expect(unconstrained.constraint).toBeUndefined()
+})
+
 function getVariableDeclaration(file: SourceFile, index: number) {
 	return cast(
 		cast(file.statements[index], isVariableStatement).declarationList
