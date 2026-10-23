@@ -1,4 +1,8 @@
-import { JsCodegenPlugin, type ServiceCodeError } from 'golar/unstable'
+import {
+	JsCodegenPlugin,
+	type IgnoreDirectiveCodegenMapping,
+	type ServiceCodeError,
+} from 'golar/unstable'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
@@ -73,6 +77,32 @@ async function importPackages(
 	})
 }
 
+const IGNORE_START = '/*Ωignore_startΩ*/'
+const IGNORE_END = '/*Ωignore_endΩ*/'
+const ENSURE_TRANSITION = '__sveltets_2_ensureTransition('
+// "Expected {0} arguments, but got {1}."
+const EXPECTED_N_ARGUMENTS = 2554
+
+// svelte2tsx wraps code that exists only for type inference in Ωignore
+// comments; svelte-check drops every diagnostic inside them
+// (isInGeneratedCode in svelte-language-server).
+function getIgnoreMappings(code: string): IgnoreDirectiveCodegenMapping[] {
+	const ignoreMappings: IgnoreDirectiveCodegenMapping[] = []
+	let start = code.indexOf(IGNORE_START)
+	while (start !== -1) {
+		const end = code.indexOf(IGNORE_END, start)
+		if (end === -1) {
+			break
+		}
+		ignoreMappings.push({
+			serviceOffset: start,
+			serviceLength: end + IGNORE_END.length - start,
+		})
+		start = code.indexOf(IGNORE_START, end)
+	}
+	return ignoreMappings
+}
+
 new JsCodegenPlugin({
 	id: 'svelte',
 	extensions: [
@@ -128,6 +158,27 @@ new JsCodegenPlugin({
 				parse: svelteCompiler.parse,
 			})
 
+			const mappings = sourceMapToMappings({
+				sourceText,
+				serviceText: tsx.code,
+				sourceMap: tsx.map.mappings,
+			})
+			for (const mapping of mappings) {
+				// Svelte calls a transition with a third `options` argument that
+				// svelte2tsx's `__sveltets_2_ensureTransition(fn(node, params))`
+				// leaves out, so a transition declaring it is reported as called
+				// with too few arguments. svelte-check drops this diagnostic
+				// (expectedTransitionThirdArgument in svelte-language-server).
+				if (
+					tsx.code.startsWith(
+						ENSURE_TRANSITION,
+						mapping.serviceOffset - ENSURE_TRANSITION.length,
+					)
+				) {
+					mapping.suppressedDiagnostics = [EXPECTED_N_ARGUMENTS]
+				}
+			}
+
 			return {
 				serviceText:
 					tsx.code +
@@ -135,11 +186,8 @@ new JsCodegenPlugin({
 					svelteTsxFiles.map((p) => `import ${JSON.stringify(p)}`).join('\n'),
 				scriptKind: 'tsx',
 				declarationFile: fileName.includes('/node_modules/'),
-				mappings: sourceMapToMappings({
-					sourceText,
-					serviceText: tsx.code,
-					sourceMap: tsx.map.mappings,
-				}),
+				mappings,
+				ignoreMappings: getIgnoreMappings(tsx.code),
 			}
 		} catch (e) {
 			const error: ServiceCodeError = {
