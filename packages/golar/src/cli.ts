@@ -195,9 +195,10 @@ if (argv[0] === 'tsc') {
 		}
 		await Promise.all(promises)
 	}
+	const lintExitCode = !typecheckOnly && ws.lintReportCount() > 0 ? 1 : 0
 	if (!lintOnly) {
-		process.exit(await ws.typecheck(typecheckFiles))
+		const typecheckExitCode = await ws.typecheck(typecheckFiles)
+		process.exit(typecheckExitCode || lintExitCode)
 	}
-	// TODO: 1 if some worker lint failed
-	process.exit(0)
+	process.exit(lintExitCode)
 }

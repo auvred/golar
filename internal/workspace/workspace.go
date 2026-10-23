@@ -61,6 +61,7 @@ type Workspace struct {
 	reportBaseDir       string
 	pathCaseSensitivity tspath.CaseSensitivity
 	reportMu            sync.Mutex
+	reportCount         uint32
 }
 
 func New(cwd string, filenames []string) *Workspace {

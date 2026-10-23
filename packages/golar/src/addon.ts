@@ -18,6 +18,7 @@ const addonModule = {
 		workspace_Lint(done: () => void): void
 		workspace_TypeCheck(done: (exitCode: number) => void): void
 		workspace_Report(threadId: number): void
+		workspace_ReportCount(): number
 	},
 }
 

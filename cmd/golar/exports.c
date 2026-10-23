@@ -201,6 +201,12 @@ static napi_value workspace_Report_bridge(napi_env env, napi_callback_info info)
 	return NULL;
 }
 
+static napi_value workspace_ReportCount_bridge(napi_env env, napi_callback_info info) {
+	napi_value count;
+	napi_create_uint32(env, golar_js_workspace_ReportCount(), &count);
+	return count;
+}
+
 napi_value create_service_code_done_cb(napi_env env, napi_callback_info info) {
 	void *data;
 	napi_get_cb_info(env, info, NULL, NULL, NULL, &data);
@@ -321,6 +327,7 @@ NAPI_MODULE_INIT() {
 		METHOD_DESCRIPTOR_STR("workspace_Lint", workspace_Lint_bridge),
 		METHOD_DESCRIPTOR_STR("workspace_TypeCheck", workspace_TypeCheck_bridge),
 		METHOD_DESCRIPTOR_STR("workspace_Report", workspace_Report_bridge),
+		METHOD_DESCRIPTOR_STR("workspace_ReportCount", workspace_ReportCount_bridge),
 	};
 
 	napi_define_properties(env, exports, sizeof(descriptors)/sizeof(descriptors[0]), descriptors);

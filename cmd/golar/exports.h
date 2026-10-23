@@ -128,6 +128,7 @@ extern void golar_js_workspace_ReadFileById(uint32_t threadId);
 extern void golar_js_workspace_GetTypeAtLocation(uint32_t threadId);
 extern void golar_js_workspace_Lint(uintptr_t doneCbTsfn);
 extern void golar_js_workspace_Report(uint32_t threadId);
+extern uint32_t golar_js_workspace_ReportCount(void);
 extern void golar_js_tsc(uint32_t threadId, uintptr_t doneCbTsfn);
 extern void golar_js_workspace_TypeCheck(uintptr_t doneCbTsfn);
 extern golar_file_with_program golar_workspace_get_requested_file(uintptr_t workspacePtr, uint32_t fileIdx);

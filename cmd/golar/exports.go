@@ -216,6 +216,12 @@ func golar_js_workspace_Report(threadId C.uint32_t) {
 	})
 }
 
+//export golar_js_workspace_ReportCount
+func golar_js_workspace_ReportCount() C.uint32_t {
+	workspacePtr := binary.LittleEndian.Uint64(syncBuffers[0])
+	return C.uint32_t(castWorkspace(workspacePtr).ReportCount())
+}
+
 //export golar_js_tsc
 func golar_js_tsc(threadId C.uint32_t, doneCbTsfn C.uintptr_t) {
 	buf := syncBuffers[threadId]

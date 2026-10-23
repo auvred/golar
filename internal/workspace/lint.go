@@ -71,7 +71,15 @@ func (w *Workspace) report(file *ast.SourceFile, ruleName string, report rule.Re
 
 	w.reportMu.Lock()
 	defer w.reportMu.Unlock()
+	w.reportCount++
 	fmt.Print(output.String())
+}
+
+// ReportCount returns how many lint reports were printed so far.
+func (w *Workspace) ReportCount() uint32 {
+	w.reportMu.Lock()
+	defer w.reportMu.Unlock()
+	return w.reportCount
 }
 
 func (w *Workspace) ReportRequestedFile(fileIdx uint32, ruleName string, report rule.Report) {

@@ -22,3 +22,13 @@ test('lint and typecheck', async () => {
 		index.vue(8,13): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'."
 	`)
 })
+
+test('lint findings fail `golar lint`', async () => {
+	const res = await runGolar({
+		cwd: path.join(import.meta.dirname, 'fixture'),
+		args: ['lint'],
+	})
+
+	expect(res).instanceof(SubprocessError)
+	expect((res as SubprocessError).exitCode).toBe(1)
+})

@@ -418,6 +418,12 @@ export class Workspace implements Disposable {
 		}
 	}
 
+	/** Number of lint reports printed so far, from every thread. */
+	lintReportCount(): number {
+		this.writePointer(0)
+		return addon.workspace_ReportCount()
+	}
+
 	[Symbol.dispose]() {
 		// TODO: dispose
 	}
