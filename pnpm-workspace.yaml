@@ -2,6 +2,7 @@ packages:
   - docs
   - e2e/all-languages/fixture
   - e2e/ember-emit/fixture
+  - e2e/js-rule-concurrency/fixture
   - e2e/lint-typecheck/fixture
   - e2e/node-id-collision/fixture
   - e2e/service-code-error/fixture

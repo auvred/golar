@@ -24,30 +24,42 @@ import (
 )
 
 type program struct {
-	program   *compiler.Program
-	checker   *checker.Checker
-	encoderMu sync.Mutex
-	encoders  []*typeencoder.Encoder
+	program  *compiler.Program
+	threadMu sync.Mutex
+	threads  []*programThread
+}
+
+// programThread is what one JS thread uses to query a program. A checker is
+// not safe for concurrent use, and the JS side caches decoded types by the
+// checker's type ids, so every JS thread gets a checker of its own and keeps
+// it for the lifetime of the workspace.
+type programThread struct {
+	checker *checker.Checker
+	encoder *typeencoder.Encoder
 }
 
 const maxThreads = 64
 
-func (p *program) encoderForThread(threadId uint32) *typeencoder.Encoder {
-	p.encoderMu.Lock()
-	defer p.encoderMu.Unlock()
+func (p *program) forThread(threadId uint32) *programThread {
+	p.threadMu.Lock()
+	defer p.threadMu.Unlock()
 
-	if int(threadId) >= len(p.encoders) {
+	if int(threadId) >= len(p.threads) {
 		panic(fmt.Errorf("invalid thread id %d", threadId))
 	}
 
-	encoder := p.encoders[threadId]
-	if encoder != nil {
-		return encoder
+	thread := p.threads[threadId]
+	if thread != nil {
+		return thread
 	}
 
-	encoder = typeencoder.New()
-	p.encoders[threadId] = encoder
-	return encoder
+	c, _ := checker.NewChecker(p.program, nil)
+	thread = &programThread{
+		checker: c,
+		encoder: typeencoder.New(),
+	}
+	p.threads[threadId] = thread
+	return thread
 }
 
 type Workspace struct {
@@ -76,12 +88,9 @@ func New(cwd string, filenames []string) *Workspace {
 	var maxSourceFileID uint32
 
 	for i, sourceProgram := range sourcePrograms {
-		// TODO: think about checker disposal
-		checker, _ := sourceProgram.GetTypeChecker(context.Background())
 		programs[i] = &program{
-			program:  sourceProgram,
-			checker:  checker,
-			encoders: make([]*typeencoder.Encoder, maxThreads),
+			program: sourceProgram,
+			threads: make([]*programThread, maxThreads),
 		}
 		for _, sourceFile := range sourceProgram.GetSourceFiles() {
 			maxSourceFileID = max(maxSourceFileID, sourceFile.Id)
@@ -134,10 +143,10 @@ func (w *Workspace) ReadFileById(id uint32) []byte {
 }
 
 func (w *Workspace) GetTypeAtLocation(buf []byte, threadId uint32, programId uint32, node *ast.Node) {
-	program := w.Programs[programId]
-	t := program.checker.GetTypeAtLocation(node)
+	thread := w.Programs[programId].forThread(threadId)
+	t := thread.checker.GetTypeAtLocation(node)
 
-	program.encoderForThread(threadId).EncodeType(buf[:0], t)
+	thread.encoder.EncodeType(buf[:0], t)
 }
 
 func (w *Workspace) TypeCheck(buf []byte) int {

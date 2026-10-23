@@ -87,6 +87,18 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/ember
 
+  e2e/js-rule-concurrency/fixture:
+    dependencies:
+      '@golar/svelte':
+        specifier: workspace:*
+        version: link:../../../packages/svelte
+      golar:
+        specifier: workspace:*
+        version: link:../../../packages/golar
+      svelte:
+        specifier: ^5.53.6
+        version: 5.53.6
+
   e2e/lint-typecheck/fixture:
     dependencies:
       '@golar/vue':
