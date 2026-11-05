@@ -43,17 +43,17 @@ func bool2byte(x bool) byte {
 }
 
 func (h *compilerHostProxy) GetSourceFile(opts ast.SourceFileParseOptions) *ast.SourceFile {
-	// FS is cached in single run
-	sourceText, ok := h.CompilerHost.FS().ReadFile(opts.FileName)
-	if !ok {
-		return nil
-	}
+	isPlugin := pluginByExtension[filepath.Ext(opts.FileName.AsString())] != nil
 
 	var hash xxh3.Hasher128
 	hash.WriteString(opts.FileName.AsString())
 	hash.WriteString(opts.PathKey.AsString())
 	hash.Write([]byte{bool2byte(opts.ExternalModuleIndicatorOptions.JSX)<<1 | bool2byte(opts.ExternalModuleIndicatorOptions.Force)})
-	hash.WriteString(h.configName)
+	// A plugin's generated code depends on the project (svelte2tsx appends the
+	// project's shim imports); a parsed .ts, .d.ts or .json file does not.
+	if isPlugin {
+		hash.WriteString(h.configName)
+	}
 	hash.WriteString(h.currentDirectory)
 
 	key := hash.Sum128()
@@ -64,9 +64,18 @@ func (h *compilerHostProxy) GetSourceFile(opts ast.SourceFileParseOptions) *ast.
 		}
 	}
 
-	sourceFile := h.parseFile(opts, sourceText, core.GetScriptKindFromFileName(opts.FileName))
+	var sourceFile *ast.SourceFile
+	if isPlugin {
+		sourceText, ok := h.CompilerHost.FS().ReadFile(opts.FileName)
+		if !ok {
+			return nil
+		}
+		sourceFile = h.parseFile(opts, sourceText, core.GetScriptKindFromFileName(opts.FileName))
+	} else {
+		sourceFile = h.CompilerHost.GetSourceFile(opts)
+	}
 	if sourceFile == nil {
-		return h.CompilerHost.GetSourceFile(opts)
+		return nil
 	}
 	if h.sourceFileCache != nil {
 		sourceFile, _ = h.sourceFileCache.LoadOrStore(key, sourceFile)
